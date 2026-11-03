@@ -44,6 +44,11 @@ th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--ru
 th { font-family: var(--mono); font-size: 24px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent-ink); font-weight: 500; }
 td:first-child { font-weight: 600; }
 td:nth-child(3) { font-family: var(--mono); font-size: 24px; color: var(--muted-ink); }
+.kit-table th, .kit-table td { border-bottom: 1px solid var(--rule); font-size: 26px; padding: 16px 18px; }
+.kit-table th { color: var(--accent); }
+.kit-table td:first-child, .kit-table td:nth-child(2) { font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--text); }
+.kit-table td:nth-child(2) { color: var(--muted); }
+.kit-table td:nth-child(3) { font-family: var(--sans); font-size: 26px; color: var(--text); }
 .score { font-family: var(--serif); font-size: 72px; font-weight: 700; line-height: 1; }
 .bad { color: var(--accent); } .ok { color: var(--good); }
 .quote { font-style: italic; font-size: 32px; line-height: 1.45; }
@@ -175,7 +180,23 @@ td:nth-child(3) { font-family: var(--mono); font-size: 24px; color: var(--muted-
   <aside hidden>Credit the starter kit. The Deal Desk in the kit became the Excuse Desk here.</aside>
 </section>
 
-<!-- 9 -->
+<!-- 9: how we use the kit -->
+<section class="slide">
+  <p class="label">The starter kit · github.com/rosscrooke/specialist-swarm</p>
+  <h2>How we use the kit.</h2>
+  <table class="kit-table">
+    <tr><th style="width:30%">Kit piece</th><th style="width:28%">Our files</th><th style="width:42%">What we changed</th></tr>
+    <tr><td>create_specialists.py</td><td>specialists.py, create_specialists.py</td><td>Five excuse agents, not four deal agents</td></tr>
+    <tr><td>upload_skills.py, skills/</td><td>same names</td><td>Four skills, one per specialist</td></tr>
+    <tr><td>create_coordinator.py</td><td>coordinator.py, create_coordinator.py</td><td>The Director returns JSON, not a Word file</td></tr>
+    <tr><td>run_deal_desk.py</td><td>swarm_client.py, app.py</td><td>The event stream drives a live Streamlit feed</td></tr>
+    <tr><td>Critic and parallel fan-out (stretch goals)</td><td>the core loop</td><td>The Critic is required, three agents run at once</td></tr>
+  </table>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Same pattern as the kit: a coordinator, specialists with skills, and an event stream. We swapped the Deal Desk domain for excuses and added the UI, memory and tests. One practical note: the current SDK renamed a skills field, so our upload script differs slightly from the kit's.</aside>
+</section>
+
+<!-- 10 -->
 <section class="slide">
   <p class="label">What comes next</p>
   <h2>Where the swarm grows.</h2>
