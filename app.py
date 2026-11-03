@@ -196,8 +196,11 @@ if generate:
         st.session_state.pop("activity", None)
         st.session_state.pop("error", None)
         loader = st.empty()
-        cards_box = st.empty()
-        log_box = st.empty()
+        live_holder = st.empty()
+        with live_holder.container():
+            with st.expander("Live swarm activity", expanded=False):
+                cards_box = st.empty()
+                log_box = st.empty()
         try:
             loader.markdown(_loader_html("Crafting your excuse…"), unsafe_allow_html=True)
             render_live(tracker, cards_box, log_box)
@@ -231,8 +234,7 @@ if generate:
         finally:
             st.session_state["activity"] = tracker
             loader.empty()
-            cards_box.empty()
-            log_box.empty()
+            live_holder.empty()
 
 # A clean rerun draws the results from saved state, so nothing depends on
 # placeholders that were cleared during the long-running swarm call.
