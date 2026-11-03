@@ -42,7 +42,7 @@ Two Claude roles:
 ## 3. Repo layout
 
 ```
-exc-gen/              # repo root (github.com/fahadvallanchira/excuse-gen)
+exc-gen/              # repo root
 ├── app.py            # Streamlit UI
 ├── agent.py          # generate_excuse(): tool runner + revision loop
 ├── skeptic.py        # critique(): structured-output call

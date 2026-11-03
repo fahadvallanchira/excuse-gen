@@ -23,7 +23,7 @@ Everyone runs `mkdir -p tests && touch tests/__init__.py` and includes that empt
 
 ## Global Constraints (from the plan)
 
-- Project lives at the root of the git repo `/Users/fahadv/Documents/exc-gen/` (remote: `https://github.com/fahadvallanchira/excuse-gen.git`). Every command below runs from that directory.
+- Project lives at the root of your local clone of the `excuse-gen` git repo. Every command below runs from that directory.
 - Use a venv inside the repo, created in Task 1: `source .venv/bin/activate` before any command.
 - Model IDs are exactly `claude-opus-5-5` (agent) and `claude-haiku-5-5` (skeptic). Never append date suffixes.
 - Never put `thinking`, `budget_tokens`, `temperature`, or forced `tool_choice` in any API call. These return 400 on these models.
@@ -101,7 +101,7 @@ Do plan Task 1 steps below. (The smoke script and its run belong to Task E.) Do 
 - [ ] **Step 1: Create the folders and the venv**
 
 ```bash
-cd /Users/fahadv/Documents/exc-gen
+# run from the repo root
 mkdir -p data scripts tests
 touch tests/__init__.py data/.gitkeep
 python3 -m venv .venv
