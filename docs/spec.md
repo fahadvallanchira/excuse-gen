@@ -16,7 +16,14 @@ A user types what they need to get out of ("Friday 3pm review"), who they are te
 6. The Director revises with the Storyteller until the Critic accepts, at most 2 revisions.
 7. The Director returns one JSON result: every round with excuse, score, holes and verdict.
 
-Steps 1 to 3 run in parallel (one message, three delegations). The Streamlit page shows the thread fan-out live, then every round, then the final excuse with a Copy button and "Mark as used". Nothing is ever sent automatically.
+Steps 1 to 3 run in parallel (one message, three delegations). The Streamlit page shows what every agent is doing (see the agent activity view below), then every round, then the final excuse with a Copy button and "Mark as used". Nothing is ever sent automatically.
+
+### Agent activity view
+
+`swarm_client.run_swarm()` reports every session event to the UI: which agent started, the brief the Director sent it, its reply, and each tool it used (for example the Fact Scout fetching weather). `activity.py` turns those events into per-agent state, and `app.py` shows it two ways:
+
+- **Live, while the swarm runs:** five cards (Fact Scout, Historian, Recipient Profiler, Storyteller, Critic), each waiting, working or done with elapsed seconds, plus the latest timeline lines. The first three flip to working together, which makes the parallel fan-out visible.
+- **After the run:** a "What each agent did" section with one expander per agent (brief, tools used, reply; one block per round for the Storyteller and Critic, with the Critic's reply shown as verdict, score and holes) and a full timeline. It stays on screen after "Mark as used", and is kept when the swarm fails.
 
 ## 2. Architecture
 

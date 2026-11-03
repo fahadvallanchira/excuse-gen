@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Excuse Swarm Demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Libre+Baskerville:wght@400;700&display=swap">
+<style>
+/* Layout: fixed 1920x1080 stage scaled to the window. Case-file look: ink and cool paper, stamp-red accent. */
+:root {
+  --ink: #101C26; --paper: #EDF0F2; --card: #F8F9FA; --rule: #CBD3D9;
+  --text: #14202B; --muted: #53606B; --accent: #B93A1A; --good: #2B7A57;
+  --on-ink: #E8EDF0; --muted-ink: #9FB0BC; --accent-ink: #FF8A65; --good-ink: #6FCF9F;
+  --card-ink: #1A2A37; --rule-ink: #2C4152;
+  --serif: "Libre Baskerville", Georgia, serif;
+  --sans: "IBM Plex Sans", Arial, sans-serif;
+  --mono: "JetBrains Mono", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: #05090d; overflow: hidden; }
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center center; }
+.slide { position: absolute; inset: 0; display: none; flex-direction: column; padding: 128px 128px 160px; gap: 48px;
+  font-family: var(--sans); background: var(--paper); color: var(--text); overflow: hidden; }
+.slide.active { display: flex; }
+.slide.dark { background: var(--ink); color: var(--on-ink); }
+h1, h2, h3, p { margin: 0; }
+h1 { font-family: var(--serif); font-size: 128px; font-weight: 700; line-height: 1.05; }
+h2 { font-family: var(--serif); font-size: 72px; font-weight: 700; line-height: 1.12; }
+h3 { font-size: 44px; font-weight: 600; line-height: 1.2; }
+.body { font-size: 32px; line-height: 1.4; }
+.label { font-family: var(--mono); font-size: 26px; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); }
+.dark .label { color: var(--accent-ink); }
+.muted { color: var(--muted); } .dark .muted { color: var(--muted-ink); }
+.foot { position: absolute; left: 128px; bottom: 64px; font-family: var(--mono); font-size: 24px; letter-spacing: 3px; color: var(--muted); }
+.dark .foot { color: var(--muted-ink); }
+.row { display: flex; gap: 32px; align-items: stretch; }
+.card { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 40px; background: var(--card); border: 1px solid var(--rule); border-radius: 16px; }
+.dark .card { background: var(--card-ink); border-color: var(--rule-ink); }
+.arrow { width: 64px; flex: none; align-self: center; font-family: var(--mono); font-size: 64px; color: var(--accent); text-align: center; }
+.stamp { position: absolute; left: 1152px; top: 128px; width: 560px; white-space: nowrap; padding: 24px 28px; text-align: center; font-family: var(--mono); font-size: 32px;
+  font-weight: 500; line-height: 1.3; letter-spacing: 2px; color: var(--accent-ink); border: 4px solid var(--accent-ink); transform: rotate(-4deg); }
+table { width: 100%; border-collapse: collapse; font-size: 28px; }
+th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--rule-ink); vertical-align: top; }
+th { font-family: var(--mono); font-size: 24px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent-ink); font-weight: 500; }
+td:first-child { font-weight: 600; }
+td:nth-child(3) { font-family: var(--mono); font-size: 24px; color: var(--muted-ink); }
+.kit-table th, .kit-table td { border-bottom: 1px solid var(--rule); font-size: 26px; padding: 16px 18px; }
+.kit-table th { color: var(--accent); }
+.kit-table td:first-child, .kit-table td:nth-child(2) { font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--text); }
+.kit-table td:nth-child(2) { color: var(--muted); }
+.kit-table td:nth-child(3) { font-family: var(--sans); font-size: 26px; color: var(--text); }
+.score { font-family: var(--serif); font-size: 72px; font-weight: 700; line-height: 1; }
+.bad { color: var(--accent); } .ok { color: var(--good); }
+.quote { font-style: italic; font-size: 32px; line-height: 1.45; }
+.big { font-family: var(--serif); font-size: 72px; line-height: 1.2; font-weight: 700; }
+.next-row { display: flex; gap: 32px; padding: 22px 0; border-top: 1px solid var(--rule); align-items: baseline; }
+.next-row b { flex: none; width: 360px; font-family: var(--mono); font-size: 26px; font-weight: 500; color: var(--accent); letter-spacing: 1px; }
+.next-row span { font-size: 32px; line-height: 1.4; }
+#hud { position: fixed; right: 20px; bottom: 14px; font: 500 14px var(--mono); color: #8da0ad; z-index: 5; user-select: none; }
+#bar { position: fixed; left: 0; top: 0; height: 4px; background: #FF8A65; width: 0; transition: width .2s; z-index: 5; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="stage">
+
+<!-- 1 -->
+<section class="slide dark" style="justify-content:flex-end;padding-bottom:128px;gap:40px">
+  <p class="stamp">NOTHING IS EVER SENT</p>
+  <p class="label">The Excuse Desk · Live demo</p>
+  <h1>Excuse Swarm</h1>
+  <p style="font-size:44px;line-height:1.3;width:1300px" class="muted">Six AI agents argue about your alibi so you don’t have to.</p>
+  <aside hidden>Welcome. This is a swarm of specialist agents that writes an excuse, then tries to break it before you ever see it. Nothing is sent automatically: you approve everything.</aside>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <p class="label">The problem</p>
+  <h2>Most excuses fail the same way: someone checks.</h2>
+  <div class="row">
+    <div class="card"><h3>Clashes with the calendar</h3><p class="body muted">“Stuck in traffic” lands badly when the shared calendar says you were home.</p></div>
+    <div class="card"><h3>Repeats itself</h3><p class="body muted">The dentist worked in March. It will not work again in April.</p></div>
+    <div class="card"><h3>Sounds rehearsed</h3><p class="body muted">Too much detail, too neat, and a suspicious reader notices.</p></div>
+  </div>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Three ways excuses fall apart. The swarm is built to catch each one before the message goes out.</aside>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <p class="label">How it works</p>
+  <h2>One request in, one vetted excuse out.</h2>
+  <div class="row" style="align-items:stretch">
+    <div class="card"><h3 style="font-size:36px">You type</h3><p class="body muted" style="font-size:28px">What to skip, who to tell, a level from 1 to 4, a city.</p></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3 style="font-size:36px">Director fans out</h3><p class="body muted" style="font-size:28px">Three specialists work in parallel on facts, history and the reader.</p></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3 style="font-size:36px">Draft and grade</h3><p class="body muted" style="font-size:28px">The Storyteller writes, the Critic scores. Up to two revisions.</p></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3 style="font-size:36px">You approve</h3><p class="body muted" style="font-size:28px">Copy it, or mark it used so it is never repeated.</p></div>
+  </div>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Walk left to right. The key point: steps two and three are agents working together, step four is always a human decision.</aside>
+</section>
+
+<!-- 4 -->
+<section class="slide dark">
+  <p class="label">The swarm</p>
+  <h2>Meet the six.</h2>
+  <table>
+    <tr><th style="width:24%">Agent</th><th style="width:38%">Job</th><th style="width:24%">Skill</th><th style="width:14%">Model</th></tr>
+    <tr><td>Excuse Director</td><td>Runs the swarm, returns the final result</td><td>none</td><td>Opus 5.5</td></tr>
+    <tr><td>Fact Scout</td><td>Finds real calendar and weather facts</td><td>fact-grounding</td><td>Haiku 5.5</td></tr>
+    <tr><td>Historian</td><td>Lists excuses already used on this person</td><td>none</td><td>Haiku 5.5</td></tr>
+    <tr><td>Recipient Profiler</td><td>Says what this person would believe</td><td>recipient-personas</td><td>Sonnet 5.5</td></tr>
+    <tr><td>Storyteller</td><td>Writes the excuse at your level</td><td>excuse-playbook</td><td>Sonnet 5.5</td></tr>
+    <tr><td>Critic</td><td>Plays the suspicious reader and scores it</td><td>believability-rubric</td><td>Sonnet 5.5</td></tr>
+  </table>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Fact Scout, Historian and Profiler run at the same time. Cheap Haiku models do the lookups, Sonnet does the judgement, Opus coordinates.</aside>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <p class="label">Example run · level 2 · “Friday 3pm review”</p>
+  <h2>Round one fails. Round two ships.</h2>
+  <div class="row">
+    <div class="card">
+      <p class="label" style="letter-spacing:3px">Round 1 · Revise</p>
+      <p class="score bad">3/10</p>
+      <p class="quote">“Something came up and I can’t make Friday’s review.”</p>
+      <p class="muted" style="font-size:26px;line-height:1.4">Critic: too vague. A manager will ask what came up.</p>
+    </div>
+    <div class="card">
+      <p class="label" style="letter-spacing:3px;color:var(--good)">Round 2 · Accept</p>
+      <p class="score ok">8/10</p>
+      <p class="quote">“My dentist moved my appointment to 3pm Friday, so I’ll miss the review. I’ll send my notes ahead.”</p>
+      <p class="muted" style="font-size:26px;line-height:1.4">Critic: matches a calendar event, short, offers to make up the work.</p>
+    </div>
+  </div>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Example text, not a recorded run. In the live demo every round is shown in the app, so the audience sees the Critic reject and the Storyteller fix it.</aside>
+</section>
+
+<!-- 6 -->
+<section class="slide dark" style="justify-content:center;gap:48px">
+  <p class="label">Memory</p>
+  <p class="big" style="width:1500px">Mark an excuse as used and it is banned for that person, for good.</p>
+  <p class="body muted" style="width:1300px">SQLite keeps a log per recipient. The Historian reads it every run. “My Manager” and “my manager” count as the same person.</p>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>This is the never-repeat rule. We show it live in step three of the demo.</aside>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <p class="label">The demo</p>
+  <h2>Three minutes, four steps.</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+    <div class="card"><p class="label" style="font-size:24px;letter-spacing:3px">Level 1</p><h3>Team lunch</h3><p class="body muted">Five agents spin up. The Critic accepts in round one.</p></div>
+    <div class="card"><p class="label" style="font-size:24px;letter-spacing:3px">Level 3</p><h3>Friday 3pm review</h3><p class="body muted">Critic rejects, Storyteller fixes it, round two passes.</p></div>
+    <div class="card"><p class="label" style="font-size:24px;letter-spacing:3px">Memory</p><h3>Mark as used, ask again</h3><p class="body muted">The Historian bans the saved excuse.</p></div>
+    <div class="card"><p class="label" style="font-size:24px;letter-spacing:3px">Level 4</p><h3>Next week, pre-emptive</h3><p class="body muted">One excuse for each meeting you would rather skip.</p></div>
+  </div>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Narrate the live thread feed in the app during steps one and two. If wifi fails, weather says unavailable and the swarm still works.</aside>
+</section>
+
+<!-- 8 -->
+<section class="slide dark">
+  <p class="label">Built on</p>
+  <h2>The specialist-swarm starter kit.</h2>
+  <div class="row">
+    <div class="card"><h3>Coordinator and specialists</h3><p class="body muted">One Director, five agents, each with a narrow job.</p></div>
+    <div class="card"><h3>Skills per agent</h3><p class="body muted">Each skill is a folder of guidance, uploaded and attached.</p></div>
+    <div class="card"><h3>Parallel fan-out</h3><p class="body muted">Three delegations in a single message.</p></div>
+  </div>
+  <p class="body">We added the Streamlit app, SQLite memory, a Critic loop and a typed JSON result.</p>
+  <p style="font-family:var(--mono);font-size:26px;color:var(--accent-ink)">github.com/rosscrooke/specialist-swarm</p>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Credit the starter kit. The Deal Desk in the kit became the Excuse Desk here.</aside>
+</section>
+
+<!-- 9: how we use the kit -->
+<section class="slide">
+  <p class="label">The starter kit · github.com/rosscrooke/specialist-swarm</p>
+  <h2>How we use the kit.</h2>
+  <table class="kit-table">
+    <tr><th style="width:30%">Kit piece</th><th style="width:28%">Our files</th><th style="width:42%">What we changed</th></tr>
+    <tr><td>create_specialists.py</td><td>specialists.py, create_specialists.py</td><td>Five excuse agents, not four deal agents</td></tr>
+    <tr><td>upload_skills.py, skills/</td><td>same names</td><td>Four skills, one per specialist</td></tr>
+    <tr><td>create_coordinator.py</td><td>coordinator.py, create_coordinator.py</td><td>The Director returns JSON, not a Word file</td></tr>
+    <tr><td>run_deal_desk.py</td><td>swarm_client.py, app.py</td><td>The event stream drives a live Streamlit feed</td></tr>
+    <tr><td>Critic and parallel fan-out (stretch goals)</td><td>the core loop</td><td>The Critic is required, three agents run at once</td></tr>
+  </table>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>Same pattern as the kit: a coordinator, specialists with skills, and an event stream. We swapped the Deal Desk domain for excuses and added the UI, memory and tests. One practical note: the current SDK renamed a skills field, so our upload script differs slightly from the kit's.</aside>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <p class="label">What comes next</p>
+  <h2>Where the swarm grows.</h2>
+  <div style="display:flex;flex-direction:column">
+    <div class="next-row"><b>Always-on</b><span>Pre-drafts next week’s excuses for you to approve</span></div>
+    <div class="next-row"><b>Memory tool</b><span>Learns which excuses actually landed</span></div>
+    <div class="next-row"><b>Voting critics</b><span>Three Critics, the lowest score decides</span></div>
+    <div class="next-row" style="border-bottom:1px solid var(--rule)"><b>Alibi mode</b><span>Two people, one story, kept consistent</span></div>
+  </div>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>These are ideas from the spec and the starter kit's stretch goals, not built yet.</aside>
+</section>
+
+<!-- 10 -->
+<section class="slide dark" style="justify-content:center;gap:40px">
+  <h1>Believable,<br>by committee.</h1>
+  <p style="font-size:44px" class="muted">Excuse Swarm. Questions?</p>
+  <p style="font-family:var(--mono);font-size:26px;color:var(--accent-ink)">github.com/fahadvallanchira/excuse-gen</p>
+  <aside hidden>Close and take questions.</aside>
+</section>
+
+</div>
+<div id="hud"></div>
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var stage = document.getElementById('stage');
+  var hud = document.getElementById('hud');
+  var bar = document.getElementById('bar');
+  var i = 0;
+
+  function fit() {
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stage.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (el, k) { el.classList.toggle('active', k === i); });
+    hud.textContent = (i + 1) + ' / ' + slides.length + '   ←  →  F fullscreen';
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    try { history.replaceState(null, '', '#' + (i + 1)); } catch (e) {}
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    }
+  });
+  document.addEventListener('click', function (e) { show(e.clientX < window.innerWidth / 3 ? i - 1 : i + 1); });
+  window.addEventListener('resize', fit);
+  fit();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+})();
+</script>
+</body>
+</html>

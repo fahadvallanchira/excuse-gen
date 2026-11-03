@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 
@@ -37,22 +38,53 @@ def _blocks_text(content) -> str:
     return "".join(b.text for b in content if getattr(b, "type", None) == "text")
 
 
-def _translate(event) -> dict | None:
+def _summarize_input(data) -> str:
+    """One short line describing a tool call's input (a URL, a query, a command)."""
+    if not data:
+        return ""
+    if isinstance(data, dict):
+        for key in ("url", "query", "command", "path", "file_path"):
+            if data.get(key):
+                return str(data[key])[:300]
+        return json.dumps(data, default=str)[:300]
+    return str(data)[:300]
+
+
+def _ev(kind: str, agent: str, text: str = "", detail: str = "") -> dict:
+    return {"kind": kind, "agent": agent, "text": text, "detail": detail}
+
+
+def _thread_agent(event, threads: dict) -> str:
+    """Name of the agent whose thread produced this event ('Director' when it has no thread)."""
+    thread_id = getattr(event, "session_thread_id", None)
+    if thread_id is None:
+        return "Director"
+    return threads.get(thread_id, "")
+
+
+def _translate(event, threads: dict | None = None) -> dict | None:
+    threads = {} if threads is None else threads
     t = event.type
-    if t == "session.thread_created":
-        return {"kind": "thread_created", "agent": getattr(event, "agent_name", "?"), "text": ""}
-    if t == "session.thread_status_running":
-        return {"kind": "thread_running", "agent": getattr(event, "agent_name", "?"), "text": ""}
+    if t in ("session.thread_created", "session.thread_status_running", "session.thread_status_idle"):
+        name = getattr(event, "agent_name", "?")
+        thread_id = getattr(event, "session_thread_id", None)
+        if thread_id is not None:
+            threads[thread_id] = name
+        kind = {"session.thread_created": "thread_created",
+                "session.thread_status_running": "thread_running",
+                "session.thread_status_idle": "thread_idle"}[t]
+        return _ev(kind, name)
     if t == "agent.thread_message_sent":
-        return {"kind": "delegate", "agent": getattr(event, "to_agent_name", "?"),
-                "text": _blocks_text(getattr(event, "content", None))}
+        return _ev("delegate", getattr(event, "to_agent_name", "?"),
+                   _blocks_text(getattr(event, "content", None)))
     if t == "agent.thread_message_received":
-        return {"kind": "reply", "agent": getattr(event, "from_agent_name", "?"),
-                "text": _blocks_text(getattr(event, "content", None))}
+        return _ev("reply", getattr(event, "from_agent_name", "?"),
+                   _blocks_text(getattr(event, "content", None)))
     if t == "agent.tool_use":
-        return {"kind": "tool", "agent": "", "text": getattr(event, "name", "?")}
+        return _ev("tool", _thread_agent(event, threads), getattr(event, "name", "?"),
+                   _summarize_input(getattr(event, "input", None)))
     if t == "agent.message":
-        return {"kind": "message", "agent": "Director", "text": _blocks_text(event.content)}
+        return _ev("message", _thread_agent(event, threads), _blocks_text(event.content))
     return None
 
 
@@ -91,12 +123,14 @@ def run_swarm(request, recipient, level, city="London", client=None, on_event=No
         pass
 
     messages: list[str] = []
+    threads: dict[str, str] = {}
     start = clock()
     wall_start = time.monotonic()  # separate from `clock` so injected test clocks are unaffected
 
     def emit(ev: dict) -> None:
         if on_event is None:
             return
+        ev["t"] = round(float(clock() - start), 2)
         try:
             on_event({**ev, "t": round(time.monotonic() - wall_start, 2)})
         except Exception:
@@ -115,7 +149,7 @@ def run_swarm(request, recipient, level, city="London", client=None, on_event=No
                 except Exception:
                     pass
                 raise TimeoutError(f"swarm did not finish within {max_seconds} seconds")
-            translated = _translate(event)
+            translated = _translate(event, threads)
             if translated:
                 emit(translated)
             if event.type == "agent.message" and not getattr(event, "session_thread_id", None):

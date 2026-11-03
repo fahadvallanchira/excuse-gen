@@ -1,5 +1,6 @@
 import streamlit as st
 
+from activity import AGENTS, ActivityTracker, parse_critic
 from context import LEVELS
 from memory import save_excuse
 from swarm_client import run_swarm
@@ -13,31 +14,72 @@ level = st.slider("Escalation level", 1, 4, 2)
 st.caption(LEVELS[level])
 
 
-def _describe(event: dict) -> str:
-    agent = event.get("agent", "")
-    kind = event.get("kind", "")
-    if kind == "thread_created":
-        return f"{agent} joined"
-    if kind == "thread_running":
-        return f"{agent} is working"
-    if kind == "delegate":
-        return f"Director → {agent}"
-    if kind == "reply":
-        return f"{agent} replied"
-    if kind == "tool":
-        return f"{agent} used a tool"
-    return f"{agent}: message" if agent else "message"
+STATUS_COLOR = {"waiting": "gray", "working": "orange", "done": "green"}
+
+
+def _time_suffix(tracker: ActivityTracker, name: str) -> str:
+    secs = tracker.elapsed(name)
+    return f" · {secs}s" if secs is not None else ""
+
+
+def render_live(tracker: ActivityTracker, cards_box, log_box) -> None:
+    """Redraw the five agent cards and the latest timeline lines while the swarm runs."""
+    with cards_box.container():
+        for col, name in zip(st.columns(len(AGENTS)), AGENTS):
+            with col:
+                st.markdown(f"**{name}**")
+                status = tracker.agents[name].status
+                st.markdown(f":{STATUS_COLOR[status]}[{status}]{_time_suffix(tracker, name)}")
+    lines = [f"`{e['t']:>5.1f}s` {e['text']}" for e in tracker.timeline[-8:]]
+    log_box.markdown("\n\n".join(lines) if lines else "Waiting for the swarm...")
+
+
+def render_activity(tracker: ActivityTracker) -> None:
+    """After the run: what each agent was asked, which tools it used, and what it answered."""
+    st.subheader("What each agent did")
+    for name in AGENTS:
+        agent = tracker.agents[name]
+        with st.expander(f"{name} · {agent.status}{_time_suffix(tracker, name)}"):
+            if not agent.exchanges:
+                st.caption("Not called in this run.")
+            for n, ex in enumerate(agent.exchanges, start=1):
+                if len(agent.exchanges) > 1:
+                    st.markdown(f"**Round {n}**")
+                if ex.brief:
+                    st.markdown("**Brief from the Director**")
+                    st.text(ex.brief)
+                for tool in ex.tools:
+                    st.caption(f"Tool: {tool}")
+                if ex.reply:
+                    st.markdown("**Reply**")
+                    critic = parse_critic(ex.reply) if name == "Critic" else None
+                    if critic:
+                        score = f"{critic['score']}/10" if critic["score"] is not None else "no score"
+                        st.markdown(f"Verdict: {critic['verdict']} · Score {score}")
+                        for hole in critic["holes"]:
+                            st.markdown(f"- {hole}")
+                    else:
+                        st.text(ex.reply)
+    with st.expander("Full timeline"):
+        for e in tracker.timeline:
+            st.caption(f"{e['t']:.1f}s  {e['text']}")
 
 
 if st.button("Generate"):
     if not request.strip() or not recipient.strip():
         st.warning("Fill in both fields.")
     else:
+        tracker = ActivityTracker()
+        st.session_state.pop("activity", None)
         try:
             with st.status("Briefing the swarm...", expanded=True) as status:
+                cards_box = st.empty()
+                log_box = st.empty()
+                render_live(tracker, cards_box, log_box)
 
                 def cb(event: dict) -> None:
-                    status.write(_describe(event))
+                    tracker.handle(event)
+                    render_live(tracker, cards_box, log_box)
 
                 result = run_swarm(request, recipient, level, city=city, on_event=cb)
                 status.update(label="Done", state="complete")
@@ -48,6 +90,8 @@ if st.button("Generate"):
         except Exception as e:
             st.session_state.pop("result", None)
             st.error(str(e))
+        finally:
+            st.session_state["activity"] = tracker
 
 result = st.session_state.get("result")
 if result is not None:
@@ -70,3 +114,7 @@ if result is not None:
 
     if st.session_state.get("saved"):
         st.success("Saved. This one will never be used on them again.")
+
+activity = st.session_state.get("activity")
+if activity is not None and activity.timeline:
+    render_activity(activity)
