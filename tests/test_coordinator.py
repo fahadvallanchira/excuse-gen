@@ -17,7 +17,7 @@ def test_params_roster_has_all_five_in_order():
 
 def test_params_model_name_tools():
     params = build_coordinator_params(IDS)
-    assert params["model"] == "claude-opus-5-5"
+    assert params["model"] == "claude-sonnet-5-5"
     assert params["name"] == "Excuse Director"
     assert params["tools"] == [{"type": "agent_toolset_20260401"}]
     assert params["system"] == COORDINATOR_SYSTEM
