@@ -91,7 +91,7 @@ td:nth-child(3) { font-family: var(--mono); font-size: 24px; color: var(--muted-
   <p class="label">How it works</p>
   <h2>One request in, one vetted excuse out.</h2>
   <div class="row" style="align-items:stretch">
-    <div class="card"><h3 style="font-size:36px">You type</h3><p class="body muted" style="font-size:28px">What to skip, who to tell, a level from 1 to 4, a city.</p></div>
+    <div class="card"><h3 style="font-size:36px">You type</h3><p class="body muted" style="font-size:28px">What to skip, who to tell, a level from 1 to 4. A random reason theme is picked for you.</p></div>
     <div class="arrow">→</div>
     <div class="card"><h3 style="font-size:36px">Director fans out</h3><p class="body muted" style="font-size:28px">Three specialists work in parallel on facts, history and the reader.</p></div>
     <div class="arrow">→</div>
@@ -109,15 +109,31 @@ td:nth-child(3) { font-family: var(--mono); font-size: 24px; color: var(--muted-
   <h2>Meet the six.</h2>
   <table>
     <tr><th style="width:24%">Agent</th><th style="width:38%">Job</th><th style="width:24%">Skill</th><th style="width:14%">Model</th></tr>
-    <tr><td>Excuse Director</td><td>Runs the swarm, returns the final result</td><td>none</td><td>Opus 5.5</td></tr>
-    <tr><td>Fact Scout</td><td>Finds real calendar and weather facts</td><td>fact-grounding</td><td>Haiku 5.5</td></tr>
+    <tr><td>Excuse Director</td><td>Runs the swarm, returns the final result</td><td>none</td><td>Sonnet 5.5</td></tr>
+    <tr><td>Fact Scout</td><td>Finds real calendar facts, passes on the reason theme</td><td>fact-grounding</td><td>Haiku 5.5</td></tr>
     <tr><td>Historian</td><td>Lists excuses already used on this person</td><td>none</td><td>Haiku 5.5</td></tr>
     <tr><td>Recipient Profiler</td><td>Says what this person would believe</td><td>recipient-personas</td><td>Sonnet 5.5</td></tr>
     <tr><td>Storyteller</td><td>Writes the excuse at your level</td><td>excuse-playbook</td><td>Sonnet 5.5</td></tr>
     <tr><td>Critic</td><td>Plays the suspicious reader and scores it</td><td>believability-rubric</td><td>Sonnet 5.5</td></tr>
   </table>
   <p class="foot">EXCUSE SWARM</p>
-  <aside hidden>Fact Scout, Historian and Profiler run at the same time. Cheap Haiku models do the lookups, Sonnet does the judgement, Opus coordinates.</aside>
+  <aside hidden>Fact Scout, Historian and Profiler run at the same time. Cheap Haiku models do the lookups, Sonnet does the judgement and coordinates.</aside>
+</section>
+
+<!-- 4b: what each agent is doing -->
+<section class="slide">
+  <p class="label">Inside a run · what each agent is doing</p>
+  <h2>Five agents, each with one job.</h2>
+  <div class="row" style="align-items:stretch;gap:20px">
+    <div class="card" style="padding:28px"><p class="label" style="font-size:22px;letter-spacing:3px">In parallel</p><h3 style="font-size:32px">Fact Scout</h3><p class="body muted" style="font-size:24px">Reads the calendar and quotes only real events. Passes on the reason theme, such as “a power cut”.</p></div>
+    <div class="card" style="padding:28px"><p class="label" style="font-size:22px;letter-spacing:3px">In parallel</p><h3 style="font-size:32px">Historian</h3><p class="body muted" style="font-size:24px">Reads past excuses for this person and returns a banned list so nothing repeats.</p></div>
+    <div class="card" style="padding:28px"><p class="label" style="font-size:22px;letter-spacing:3px">In parallel</p><h3 style="font-size:32px">Recipient Profiler</h3><p class="body muted" style="font-size:24px">Profiles the reader: how strict, what tone, what they would believe.</p></div>
+    <div class="card" style="padding:28px"><p class="label" style="font-size:22px;letter-spacing:3px">Then</p><h3 style="font-size:32px">Storyteller</h3><p class="body muted" style="font-size:24px">Gets all three reports and writes the excuse. On a revise, fixes every hole.</p></div>
+    <div class="card" style="padding:28px"><p class="label" style="font-size:22px;letter-spacing:3px">Then</p><h3 style="font-size:32px">Critic</h3><p class="body muted" style="font-size:24px">Plays the suspicious manager. Replies ACCEPT or REVISE, a score, and the holes.</p></div>
+  </div>
+  <p class="body muted" style="font-size:26px;margin-top:8px">In the app each agent has a live card: <b>waiting</b>, <b>working</b>, <b>done</b>. You see the brief the Director sent it and its reply, in the timeline.</p>
+  <p class="foot">EXCUSE SWARM</p>
+  <aside hidden>This is what the live feed shows. The Director delegates to the first three at the same moment. Once they report, the Storyteller drafts and the Critic grades. If the Critic says revise, the holes go back to the Storyteller, up to two times. The Director then returns one JSON result.</aside>
 </section>
 
 <!-- 5 -->
@@ -162,7 +178,7 @@ td:nth-child(3) { font-family: var(--mono); font-size: 24px; color: var(--muted-
     <div class="card"><p class="label" style="font-size:24px;letter-spacing:3px">Level 4</p><h3>Next week, pre-emptive</h3><p class="body muted">One excuse for each meeting you would rather skip.</p></div>
   </div>
   <p class="foot">EXCUSE SWARM</p>
-  <aside hidden>Narrate the live thread feed in the app during steps one and two. If wifi fails, weather says unavailable and the swarm still works.</aside>
+  <aside hidden>Narrate the live thread feed in the app during steps one and two. Each run picks a random reason theme, so asking twice gives different excuses.</aside>
 </section>
 
 <!-- 8 -->
