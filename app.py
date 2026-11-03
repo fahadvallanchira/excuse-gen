@@ -1,7 +1,7 @@
 import streamlit as st
 
 from activity import AGENTS, ActivityTracker, parse_critic
-from context import LEVELS
+from context import LEVELS, random_reason
 from memory import save_excuse
 from swarm_client import run_swarm
 
@@ -9,7 +9,6 @@ st.title("Excuse Swarm")
 
 request = st.text_input("What do you need to get out of?")
 recipient = st.text_input("Who are you telling?")
-city = st.text_input("City (for weather)", value="London")
 level = st.slider("Escalation level", 1, 4, 2)
 st.caption(LEVELS[level])
 
@@ -69,6 +68,8 @@ if st.button("Generate"):
     if not request.strip() or not recipient.strip():
         st.warning("Fill in both fields.")
     else:
+        reason = random_reason()
+        st.caption(f"Reason theme: {reason}")
         tracker = ActivityTracker()
         st.session_state.pop("activity", None)
         try:
@@ -81,7 +82,7 @@ if st.button("Generate"):
                     tracker.handle(event)
                     render_live(tracker, cards_box, log_box)
 
-                result = run_swarm(request, recipient, level, city=city, on_event=cb)
+                result = run_swarm(request, recipient, level, reason=reason, on_event=cb)
                 status.update(label="Done", state="complete")
             st.session_state["result"] = result
             st.session_state["recipient"] = recipient

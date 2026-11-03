@@ -1,15 +1,28 @@
 """Builds the context document handed to the Excuse Director."""
 import json
+import random
 from datetime import date, timedelta
 
 from memory import DB_PATH, normalize, past_excuses_for
 
 LEVELS: dict[int, str] = {
     1: "Vague and low-risk. Something like 'something came up'. No details that could be checked.",
-    2: "Tied to one real fact from the calendar or weather. Short and believable.",
+    2: "Tied to one real fact from the calendar or the reason theme. Short and believable.",
     3: "A short saga with two or three supporting details that are internally consistent. Still plausible.",
     4: "Pre-emptive. Look at the next seven days of calendar, pick the meetings the user will most want to skip, and propose one excuse per meeting.",
 }
+
+
+REASONS: list[str] = [
+    "car trouble", "a plumbing leak at home", "a sick pet", "a family emergency",
+    "a migraine", "a delayed train", "a power cut", "a locked-out flat",
+    "a parcel that needs signing for", "a sudden stomach bug", "a broken-down lift",
+    "a neighbour's flood", "jury-duty paperwork", "a last-minute childcare gap",
+]
+
+
+def random_reason() -> str:
+    return random.choice(REASONS)
 
 
 def _doc(name: str, body: str) -> str:
@@ -31,7 +44,7 @@ def _calendar_lines(calendar_path: str, today: date) -> str:
     return "\n".join(lines) if lines else "(no events)"
 
 
-def build_context(request: str, recipient: str, level: int, city: str = "London",
+def build_context(request: str, recipient: str, level: int, reason: str | None = None,
                   today: date | None = None, calendar_path: str = "data/calendar.json",
                   db_path: str = DB_PATH) -> str:
     if not request or not request.strip():
@@ -47,7 +60,7 @@ def build_context(request: str, recipient: str, level: int, city: str = "London"
         f"Escape: {request.strip()}\n"
         f"Recipient: {recipient.strip()}\n"
         f"Level: {level}\n{LEVELS[level]}\n"
-        f"City: {city}"
+        f"Reason theme: {reason or random_reason()}"
     )
     past = past_excuses_for(normalize(recipient), db_path)
     past_md = "\n".join(f"- {p}" for p in past) if past else "(none)"
