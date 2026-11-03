@@ -184,6 +184,9 @@ def _loader_html(msg: str) -> str:
     )
 
 
+# Reserved up front so the previous run's results clear the moment Generate is clicked.
+results_slot = st.empty()
+
 succeeded = False
 if generate:
     if not request.strip() or not recipient.strip():
@@ -193,8 +196,8 @@ if generate:
         st.caption(f"Reason theme: {reason}")
         reason = random_reason()
         tracker = ActivityTracker()
-        st.session_state.pop("activity", None)
-        st.session_state.pop("error", None)
+        for key in ("activity", "error", "result", "reason", "saved"):
+            st.session_state.pop(key, None)
         loader = st.empty()
         live_holder = st.empty()
         with live_holder.container():
@@ -249,58 +252,59 @@ def activity_link() -> None:
             activity_dialog(activity)
 
 
-if st.session_state.get("error"):
-    st.error(st.session_state["error"])
+with results_slot.container():
+    if st.session_state.get("error"):
+        st.error(st.session_state["error"])
 
-result = st.session_state.get("result")
-if result is None:
-    _, right = st.columns([3, 2])
-    with right:
-        activity_link()
-if result is not None:
-    last = len(result.rounds)
-    head, link = st.columns([3, 2], vertical_alignment="center")
-    head.subheader("How it went")
-    with link:
-        activity_link()
-    if st.session_state.get("reason"):
+    result = st.session_state.get("result")
+    if result is None:
+        _, right = st.columns([3, 2])
+        with right:
+            activity_link()
+    if result is not None:
+        last = len(result.rounds)
+        head, link = st.columns([3, 2], vertical_alignment="center")
+        head.subheader("How it went")
+        with link:
+            activity_link()
+        if st.session_state.get("reason"):
+            st.markdown(
+                f'<span class="lvl l2">🎲 Reason theme · {st.session_state["reason"]}</span>',
+                unsafe_allow_html=True,
+            )
+        for i, r in enumerate(result.rounds, start=1):
+            with st.expander(f"Round {i}: believability {r.believability}/10", expanded=(i == last)):
+                st.markdown(
+                    f'<span class="pill {r.verdict}">{r.verdict.upper()}</span>',
+                    unsafe_allow_html=True,
+                )
+                pct = max(0, min(r.believability, 10)) * 10
+                st.markdown(
+                    f'<div class="bar {_tier(r.believability)}"><i style="width:{pct}%"></i></div>',
+                    unsafe_allow_html=True,
+                )
+                st.write(r.excuse)
+                if r.holes:
+                    st.caption("Critic found: " + "; ".join(r.holes))
+
+        final = result.rounds[-1]
         st.markdown(
-            f'<span class="lvl l2">🎲 Reason theme · {st.session_state["reason"]}</span>',
+            f'<div class="final-card"><h3>✨ Your excuse '
+            f'<span class="pill {_tier(final.believability)}">{final.believability}/10</span></h3></div>',
             unsafe_allow_html=True,
         )
-    for i, r in enumerate(result.rounds, start=1):
-        with st.expander(f"Round {i}: believability {r.believability}/10", expanded=(i == last)):
-            st.markdown(
-                f'<span class="pill {r.verdict}">{r.verdict.upper()}</span>',
-                unsafe_allow_html=True,
+        st.code(result.final_excuse, language=None)
+
+        if st.button("Mark as used"):
+            save_excuse(
+                st.session_state["recipient"],
+                result.final_excuse,
+                st.session_state["level"],
             )
-            pct = max(0, min(r.believability, 10)) * 10
-            st.markdown(
-                f'<div class="bar {_tier(r.believability)}"><i style="width:{pct}%"></i></div>',
-                unsafe_allow_html=True,
-            )
-            st.write(r.excuse)
-            if r.holes:
-                st.caption("Critic found: " + "; ".join(r.holes))
+            st.session_state["saved"] = True
 
-    final = result.rounds[-1]
-    st.markdown(
-        f'<div class="final-card"><h3>✨ Your excuse '
-        f'<span class="pill {_tier(final.believability)}">{final.believability}/10</span></h3></div>',
-        unsafe_allow_html=True,
-    )
-    st.code(result.final_excuse, language=None)
-
-    if st.button("Mark as used"):
-        save_excuse(
-            st.session_state["recipient"],
-            result.final_excuse,
-            st.session_state["level"],
-        )
-        st.session_state["saved"] = True
-
-    if st.session_state.get("saved"):
-        st.success("Saved. This one will never be used on them again.")
+        if st.session_state.get("saved"):
+            st.success("Saved. This one will never be used on them again.")
 
 st.divider()
 st.caption("Nothing is ever sent to anyone. Excuses are only saved locally when you mark them as used.")
