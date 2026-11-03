@@ -1,0 +1,11 @@
+.venv/
+.env
+data/excuses.db
+__pycache__/
+.pytest_cache/
+outputs/
+.environment_id
+.specialist_ids.json
+.skill_ids.json
+.coordinator_id
+.last_session_id
