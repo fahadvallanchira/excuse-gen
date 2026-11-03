@@ -1,7 +1,7 @@
 import streamlit as st
 
 from activity import AGENTS, ActivityTracker, parse_critic
-from context import LEVELS, random_reason
+from context import random_reason
 from memory import save_excuse
 from swarm_client import run_swarm
 
@@ -117,7 +117,6 @@ with st.container(border=True):
         f'<span class="lvl l{level}">Level {level} · {LEVEL_NAMES[level]}</span>',
         unsafe_allow_html=True,
     )
-    st.caption(LEVELS[level])
     generate = st.button("Generate", type="primary")
 
 

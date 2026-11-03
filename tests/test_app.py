@@ -85,9 +85,11 @@ def test_swarm_error_is_shown(fakes, monkeypatch):
     assert any("boom" in e.value for e in at.error)
 
 
-def test_level_caption_follows_default_slider(fakes):
+def test_level_chip_follows_default_slider(fakes):
     at = AppTest.from_file(APP).run()
-    assert LEVELS[2] in [c.value for c in at.caption]
+    assert any("Level 2" in m.value for m in at.markdown)
+    # The long level description is no longer shown above the Generate button.
+    assert LEVELS[2] not in [c.value for c in at.caption]
 
 
 # ---- agent activity view ---------------------------------------------------
