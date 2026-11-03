@@ -167,3 +167,47 @@ def test_calendar_and_db_paths_are_forwarded(ids, monkeypatch):
     monkeypatch.setattr(swarm_client, "build_context", lambda *a, **k: got.update(k) or "CTX")
     go([msg(json.dumps(RESULT)), IDLE], ids, calendar_path="cal.json", db_path="x.db")
     assert got["calendar_path"] == "cal.json" and got["db_path"] == "x.db"
+
+
+def test_tool_event_is_attributed_to_the_thread_agent_with_detail(ids):
+    seen = []
+    go([NS(type="session.thread_created", agent_name="Fact Scout", session_thread_id="th1"),
+        NS(type="agent.tool_use", name="web_fetch", session_thread_id="th1",
+           input={"url": "https://api.open-meteo.com/v1/forecast?x=1"}),
+        msg(json.dumps(RESULT)), IDLE], ids, on_event=seen.append)
+    tool = next(e for e in seen if e["kind"] == "tool")
+    assert tool["agent"] == "Fact Scout"
+    assert tool["text"] == "web_fetch"
+    assert "open-meteo" in tool["detail"]
+
+
+def test_tool_event_without_a_thread_belongs_to_the_director(ids):
+    seen = []
+    go([NS(type="agent.tool_use", name="bash", input={"command": "ls"}),
+        msg(json.dumps(RESULT)), IDLE], ids, on_event=seen.append)
+    assert next(e for e in seen if e["kind"] == "tool")["agent"] == "Director"
+
+
+def test_subthread_message_is_attributed_to_its_agent(ids):
+    seen = []
+    go([NS(type="session.thread_created", agent_name="Critic", session_thread_id="th9"),
+        msg("VERDICT: ACCEPT", session_thread_id="th9"),
+        msg(json.dumps(RESULT)), IDLE], ids, on_event=seen.append)
+    messages = [e for e in seen if e["kind"] == "message"]
+    assert [m["agent"] for m in messages] == ["Critic", "Director"]
+
+
+def test_thread_idle_event_is_reported(ids):
+    seen = []
+    go([NS(type="session.thread_status_idle", agent_name="Historian", session_thread_id="th2"),
+        msg(json.dumps(RESULT)), IDLE], ids, on_event=seen.append)
+    assert seen[0] == {**seen[0], "kind": "thread_idle", "agent": "Historian"}
+
+
+def test_every_event_carries_elapsed_seconds_and_detail(ids):
+    seen = []
+    go([NS(type="session.thread_created", agent_name="Fact Scout", session_thread_id="th1"),
+        NS(type="agent.thread_message_sent", to_agent_name="Fact Scout", content=[text_block("go")]),
+        msg(json.dumps(RESULT)), IDLE], ids, on_event=seen.append)
+    assert all(isinstance(e["t"], float) and "detail" in e for e in seen)
+    assert [e["t"] for e in seen] == sorted(e["t"] for e in seen)
