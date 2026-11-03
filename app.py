@@ -11,7 +11,27 @@ st.markdown(
     """
     <style>
     .block-container { max-width: 760px; padding-top: 2.5rem; }
-    .hero h1 { font-size: 2.6rem; margin-bottom: 0; letter-spacing: -0.02em; }
+    .stApp { background:
+        radial-gradient(900px 420px at 8% -5%, rgba(124,58,237,.16), transparent 60%),
+        radial-gradient(800px 380px at 100% 0%, rgba(236,72,153,.13), transparent 55%),
+        radial-gradient(700px 400px at 50% 110%, rgba(245,158,11,.10), transparent 60%); }
+    .hero h1 { font-size: 2.7rem; margin-bottom: 0; letter-spacing: -0.02em; font-weight: 800;
+               background: linear-gradient(90deg,#7c3aed,#ec4899 55%,#f59e0b);
+               -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lvl { display:inline-block; padding: 3px 12px; border-radius: 999px; font-size:.8rem;
+           font-weight:700; color:#fff; margin-bottom:.35rem; }
+    .lvl.l1 { background: linear-gradient(90deg,#10b981,#34d399); }
+    .lvl.l2 { background: linear-gradient(90deg,#3b82f6,#60a5fa); }
+    .lvl.l3 { background: linear-gradient(90deg,#f59e0b,#fb923c); }
+    .lvl.l4 { background: linear-gradient(90deg,#ef4444,#ec4899); }
+    .bar { height:10px; border-radius:999px; background: rgba(127,127,127,.2); overflow:hidden; margin:.2rem 0 .6rem; }
+    .bar > i { display:block; height:100%; border-radius:999px; }
+    .bar.hi > i { background: linear-gradient(90deg,#10b981,#34d399); }
+    .bar.mid > i { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
+    .bar.lo > i { background: linear-gradient(90deg,#ef4444,#f87171); }
+    .pill.hi { background:#dcfce7; color:#166534; }
+    .pill.mid { background:#fef3c7; color:#92400e; }
+    .pill.lo { background:#fee2e2; color:#991b1b; }
     .hero p { color: #6b7280; font-size: 1.05rem; margin-top: .25rem; }
     .pill { display:inline-block; padding: 2px 10px; border-radius: 999px;
             font-size: .78rem; font-weight: 600; margin-left: .5rem; }
@@ -57,6 +77,20 @@ EXAMPLES = [
 ]
 
 
+LEVEL_NAMES = {1: "Vague", 2: "Grounded", 3: "Saga", 4: "Pre-emptive"}
+AGENT_COLOR = {
+    "Fact Scout": "blue",
+    "Historian": "orange",
+    "Recipient Profiler": "violet",
+    "Storyteller": "green",
+    "Critic": "red",
+}
+
+
+def _tier(score: int) -> str:
+    return "hi" if score >= 7 else "mid" if score >= 4 else "lo"
+
+
 def _use_example(req: str, who: str) -> None:
     st.session_state["request_in"] = req
     st.session_state["recipient_in"] = who
@@ -80,6 +114,10 @@ with st.container(border=True):
     )
     city = st.text_input("City (for weather)", value="London")
     level = st.slider("Escalation level", 1, 4, 2)
+    st.markdown(
+        f'<span class="lvl l{level}">Level {level} · {LEVEL_NAMES[level]}</span>',
+        unsafe_allow_html=True,
+    )
     st.caption(LEVELS[level])
     generate = st.button("Generate", type="primary")
 
@@ -97,7 +135,7 @@ def render_live(tracker: ActivityTracker, cards_box, log_box) -> None:
     with cards_box.container():
         for col, name in zip(st.columns(len(AGENTS)), AGENTS):
             with col:
-                st.markdown(f"**{name}**")
+                st.markdown(f":{AGENT_COLOR[name]}[**{name}**]")
                 status = tracker.agents[name].status
                 st.markdown(f":{STATUS_COLOR[status]}[{status}]{_time_suffix(tracker, name)}")
     lines = [f"`{e['t']:>5.1f}s` {e['text']}" for e in tracker.timeline[-8:]]
@@ -106,7 +144,6 @@ def render_live(tracker: ActivityTracker, cards_box, log_box) -> None:
 
 def render_activity(tracker: ActivityTracker) -> None:
     """After the run: what each agent was asked, which tools it used, and what it answered."""
-    st.subheader("What each agent did")
     for name in AGENTS:
         agent = tracker.agents[name]
         with st.expander(f"{name} · {agent.status}{_time_suffix(tracker, name)}"):
@@ -135,6 +172,11 @@ def render_activity(tracker: ActivityTracker) -> None:
             st.caption(f"{e['t']:.1f}s  {e['text']}")
 
 
+@st.dialog("What each agent did", width="large")
+def activity_dialog(tracker: ActivityTracker) -> None:
+    render_activity(tracker)
+
+
 def _loader_html(msg: str) -> str:
     return (
         '<div class="loader"><div class="orbit"><span></span><span></span>'
@@ -150,6 +192,7 @@ if generate:
     else:
         tracker = ActivityTracker()
         st.session_state.pop("activity", None)
+        st.session_state.pop("error", None)
         loader = st.empty()
         cards_box = st.empty()
         log_box = st.empty()
@@ -181,7 +224,7 @@ if generate:
             succeeded = True
         except Exception as e:
             st.session_state.pop("result", None)
-            st.error(str(e))
+            st.session_state["error"] = str(e)
         finally:
             st.session_state["activity"] = tracker
             loader.empty()
@@ -193,17 +236,39 @@ if generate:
 if succeeded:
     st.rerun()
 
+def activity_link() -> None:
+    """Link-style button that opens the per-agent activity dialog on demand."""
+    activity = st.session_state.get("activity")
+    if activity is not None and activity.timeline:
+        if st.button("🔍 View agent activity", type="tertiary", use_container_width=True):
+            activity_dialog(activity)
+
+
+if st.session_state.get("error"):
+    st.error(st.session_state["error"])
+
 result = st.session_state.get("result")
+if result is None:
+    _, right = st.columns([3, 2])
+    with right:
+        activity_link()
 if result is not None:
     last = len(result.rounds)
-    st.subheader("How it went")
+    head, link = st.columns([3, 2], vertical_alignment="center")
+    head.subheader("How it went")
+    with link:
+        activity_link()
     for i, r in enumerate(result.rounds, start=1):
         with st.expander(f"Round {i}: believability {r.believability}/10", expanded=(i == last)):
             st.markdown(
                 f'<span class="pill {r.verdict}">{r.verdict.upper()}</span>',
                 unsafe_allow_html=True,
             )
-            st.progress(max(0, min(r.believability, 10)) / 10)
+            pct = max(0, min(r.believability, 10)) * 10
+            st.markdown(
+                f'<div class="bar {_tier(r.believability)}"><i style="width:{pct}%"></i></div>',
+                unsafe_allow_html=True,
+            )
             st.write(r.excuse)
             if r.holes:
                 st.caption("Critic found: " + "; ".join(r.holes))
@@ -211,7 +276,7 @@ if result is not None:
     final = result.rounds[-1]
     st.markdown(
         f'<div class="final-card"><h3>✨ Your excuse '
-        f'<span class="pill {final.verdict}">{final.believability}/10</span></h3></div>',
+        f'<span class="pill {_tier(final.believability)}">{final.believability}/10</span></h3></div>',
         unsafe_allow_html=True,
     )
     st.code(result.final_excuse, language=None)
@@ -226,10 +291,6 @@ if result is not None:
 
     if st.session_state.get("saved"):
         st.success("Saved. This one will never be used on them again.")
-
-activity = st.session_state.get("activity")
-if activity is not None and activity.timeline:
-    render_activity(activity)
 
 st.divider()
 st.caption("Nothing is ever sent to anyone. Excuses are only saved locally when you mark them as used.")

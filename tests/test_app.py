@@ -128,6 +128,8 @@ def _texts(at):
 def _run(at):
     _filled(at)
     _button(at, "Generate").click().run()
+    # The per-agent activity lives in a dialog that opens on demand.
+    _button(at, "🔍 View agent activity").click().run()
     return at
 
 
@@ -171,4 +173,6 @@ def test_activity_is_kept_when_the_swarm_fails(rich):
 def test_activity_survives_mark_as_used(rich):
     at = _run(AppTest.from_file(APP).run())
     _button(at, "Mark as used").click().run()
+    # The dialog closes on rerun; the link must still be there to reopen it.
+    _button(at, "🔍 View agent activity").click().run()
     assert any(e.label.startswith("Fact Scout") for e in at.expander)
