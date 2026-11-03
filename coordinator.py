@@ -1,4 +1,4 @@
-COORDINATOR_MODEL = "claude-opus-5-5"
+COORDINATOR_MODEL = "claude-sonnet-5-5"
 
 SPECIALIST_KEYS = ["fact_scout", "historian", "profiler", "storyteller", "critic"]
 
@@ -9,7 +9,7 @@ excuse together with every revision round.
 
 # Your roster
 
-- Fact Scout: real facts from the calendar and today's weather
+- Fact Scout: real facts from the calendar, plus the app's chosen reason theme
 - Historian: excuses already used on this recipient, and what must not be reused
 - Recipient Profiler: what this kind of person would believe, and what tone suits them
 - Storyteller: drafts the excuse at the requested level
@@ -21,13 +21,13 @@ The user message contains the request as documents (request.md, calendar.md,
 past-excuses.md). Specialists cannot see that message, so paste the relevant
 document text verbatim into each brief.
 
-1. Read the request yourself first. Note the recipient, the level and the city.
+1. Read the request yourself first. Note the recipient, the level and the Reason theme line.
 
 2. Delegate to Fact Scout, Historian and Recipient Profiler in a SINGLE message,
-   so the three run in parallel. Fact Scout gets calendar.md and the City line.
+   so the three run in parallel. Fact Scout gets calendar.md and the Reason theme line.
    Historian gets past-excuses.md. Recipient Profiler gets request.md.
 
-3. Give the Storyteller the three outputs, the level with its description, and
+3. Give the Storyteller the three outputs, the Reason theme (build the excuse around it), the level with its description, and
    the list of excuses that must not be reused.
 
 4. Send the Storyteller's draft, with the recipient, to the Critic.

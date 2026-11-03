@@ -30,10 +30,11 @@ def test_critic_reply_format_is_documented():
         assert needle in system
 
 
-def test_fact_scout_handles_weather_outage_and_uses_open_meteo():
+def test_fact_scout_passes_on_reason_theme_and_does_not_fetch_weather():
     system = BY_KEY["fact_scout"]["system"]
-    assert "Open-Meteo" in system
-    assert "weather unavailable" in system
+    assert "Reason theme" in system
+    assert "[reason]" in system
+    assert "weather" not in system.lower()
 
 
 def test_historian_bans_reuse():

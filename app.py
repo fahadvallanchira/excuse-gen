@@ -1,7 +1,7 @@
 import streamlit as st
 
 from activity import AGENTS, ActivityTracker, parse_critic
-from context import LEVELS
+from context import LEVELS, random_reason
 from memory import save_excuse
 from swarm_client import run_swarm
 
@@ -112,7 +112,6 @@ with st.container(border=True):
         key="recipient_in",
         placeholder="e.g. my manager",
     )
-    city = st.text_input("City (for weather)", value="London")
     level = st.slider("Escalation level", 1, 4, 2)
     st.markdown(
         f'<span class="lvl l{level}">Level {level} · {LEVEL_NAMES[level]}</span>',
@@ -190,6 +189,9 @@ if generate:
     if not request.strip() or not recipient.strip():
         st.warning("Fill in both fields.")
     else:
+        reason = random_reason()
+        st.caption(f"Reason theme: {reason}")
+        reason = random_reason()
         tracker = ActivityTracker()
         st.session_state.pop("activity", None)
         st.session_state.pop("error", None)
@@ -216,10 +218,11 @@ if generate:
                     "tool": f"🔧 {agent} used a tool",
                 }.get(kind, "Crafting your excuse…")
 
-            result = run_swarm(request, recipient, level, city=city, on_event=cb)
+            result = run_swarm(request, recipient, level, reason=reason, on_event=cb)
             st.session_state["result"] = result
             st.session_state["recipient"] = recipient
             st.session_state["level"] = level
+            st.session_state["reason"] = reason
             st.session_state.pop("saved", None)
             succeeded = True
         except Exception as e:
@@ -258,6 +261,11 @@ if result is not None:
     head.subheader("How it went")
     with link:
         activity_link()
+    if st.session_state.get("reason"):
+        st.markdown(
+            f'<span class="lvl l2">🎲 Reason theme · {st.session_state["reason"]}</span>',
+            unsafe_allow_html=True,
+        )
     for i, r in enumerate(result.rounds, start=1):
         with st.expander(f"Round {i}: believability {r.believability}/10", expanded=(i == last)):
             st.markdown(

@@ -16,8 +16,8 @@ def fakes(monkeypatch):
     swarm_calls = []
     saved = []
 
-    def fake_run_swarm(request, recipient, level, city="London", on_event=None, **kw):
-        swarm_calls.append((request, recipient, level, city))
+    def fake_run_swarm(request, recipient, level, reason=None, on_event=None, **kw):
+        swarm_calls.append((request, recipient, level, reason))
         if on_event:
             on_event({"kind": "thread_created", "agent": "Fact Scout", "text": ""})
             on_event({"kind": "reply", "agent": "Critic", "text": ""})
@@ -106,7 +106,7 @@ ACTIVITY_EVENTS = [
 def rich(monkeypatch):
     state = {"fail": False}
 
-    def fake_run_swarm(request, recipient, level, city="London", on_event=None, **kw):
+    def fake_run_swarm(request, recipient, level, reason=None, on_event=None, **kw):
         for e in ACTIVITY_EVENTS:
             on_event(dict(e))
         if state["fail"]:

@@ -4,7 +4,7 @@ Read this file first, then [task.md](task.md). It tells you how to set the proje
 
 ## What this project is
 
-Excuse Swarm. A Streamlit app: the user says what they want to get out of, who they are telling, an escalation level and optionally a city. A Claude Managed Agents swarm built on the [specialist-swarm starter kit](https://github.com/rosscrooke/specialist-swarm) does the work: a coordinator (the Excuse Director) delegates in parallel to a Fact Scout, a Historian and a Recipient Profiler, has a Storyteller draft the excuse, and sends it to a Critic. The Director revises at most twice and returns one JSON result. The UI shows live thread activity, every round, a Copy button, and "Mark as used", which saves to SQLite. Nothing is ever sent.
+Excuse Swarm. A Streamlit app: the user says what they want to get out of, who they are telling, an escalation level and a random reason theme is picked for you. A Claude Managed Agents swarm built on the [specialist-swarm starter kit](https://github.com/rosscrooke/specialist-swarm) does the work: a coordinator (the Excuse Director) delegates in parallel to a Fact Scout, a Historian and a Recipient Profiler, has a Storyteller draft the excuse, and sends it to a Critic. The Director revises at most twice and returns one JSON result. The UI shows live thread activity, every round, a Copy button, and "Mark as used", which saves to SQLite. Nothing is ever sent.
 
 Docs: [docs/spec.md](docs/spec.md) (design), [docs/superpowers/plans/2026-11-03-excuse-swarm.md](docs/superpowers/plans/2026-11-03-excuse-swarm.md) (exact tests and steps), [task.md](task.md) (who builds what), and the starter kit repo (Managed Agents API usage).
 
