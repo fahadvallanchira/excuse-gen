@@ -125,13 +125,14 @@ def run_swarm(request, recipient, level, city="London", client=None, on_event=No
     messages: list[str] = []
     threads: dict[str, str] = {}
     start = clock()
+    wall_start = time.monotonic()  # separate from `clock` so injected test clocks are unaffected
 
     def emit(ev: dict) -> None:
         if on_event is None:
             return
         ev["t"] = round(float(clock() - start), 2)
         try:
-            on_event(ev)
+            on_event({**ev, "t": round(time.monotonic() - wall_start, 2)})
         except Exception:
             pass  # a UI callback error must not kill the run
 
