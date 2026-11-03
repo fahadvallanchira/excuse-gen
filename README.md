@@ -1,0 +1,3 @@
+# Excuse Swarm
+
+Excuse Swarm is a Streamlit app that writes believable excuses for getting out of things. You say what you want to escape, who you are telling, an escalation level and optionally a city, and a swarm of Claude Managed Agents (Fact Scout, Historian, Recipient Profiler, Storyteller, Critic, run by an Excuse Director) drafts and stress-tests the excuse. Nothing is ever sent; "Mark as used" only saves to a local SQLite file. Install with `pip install -r requirements.txt`, set `ANTHROPIC_API_KEY`, then run `streamlit run app.py`. See [setup.md](setup.md) for provisioning the agents and project rules.
