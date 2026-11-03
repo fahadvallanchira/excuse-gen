@@ -97,7 +97,7 @@ def _best_result(messages: list[str]) -> SwarmResult:
     return last if last.rounds[0].holes != ["unparsed output"] else joined
 
 
-def run_swarm(request, recipient, level, city="London", client=None, on_event=None,
+def run_swarm(request, recipient, level, reason=None, client=None, on_event=None,
               max_seconds: float = 300, clock=time.monotonic, ids_dir: str = ".",
               calendar_path=None, db_path=None) -> SwarmResult:
     if not request.strip() or not recipient.strip() or level not in (1, 2, 3, 4):
@@ -111,7 +111,7 @@ def run_swarm(request, recipient, level, city="London", client=None, on_event=No
         extra["calendar_path"] = calendar_path
     if db_path is not None:
         extra["db_path"] = db_path
-    context = build_context(request, recipient, level, city=city, **extra)
+    context = build_context(request, recipient, level, reason=reason, **extra)
 
     client = client or _make_client()
     session = client.beta.sessions.create(

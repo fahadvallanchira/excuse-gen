@@ -22,7 +22,7 @@ Each step should finish in under 90 seconds. If slower, lower the Director to a 
 
 ## Fallbacks
 
-- **Weather outage / venue wifi:** the Fact Scout says "weather unavailable" and continues; nothing to do.
+- **Weather is no longer used: each run picks a random reason theme (see `REASONS` in `context.py`).
 - **Model IDs rejected by Managed Agents:** swap the three model constants (`DIRECTOR`/Opus in `coordinator.py`, and the Sonnet and Haiku IDs in `specialists.py`) for IDs your workspace accepts, then re-run `create_specialists.py` and `create_coordinator.py`.
 - **No Managed Agents access:** `scripts/smoke.py` prints `NOT AVAILABLE`; request access for the workspace key before the demo.
 - **Session hangs:** `run_swarm` raises `TimeoutError` after 300 seconds; just retry.

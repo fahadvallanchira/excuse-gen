@@ -17,9 +17,9 @@ def ev(d, title="Thing"):
     return {"date": d, "time": "10:00", "title": title, "attendees": ["x"]}
 
 
-def test_context_includes_request_recipient_level_city_and_today(tmp_path):
+def test_context_includes_request_recipient_level_reason_and_today(tmp_path):
     out = context.build_context(
-        "skip the offsite", "my manager", 2, city="Paris",
+        "skip the offsite", "my manager", 2, reason="a sick pet",
         today=date(2026, 11, 3), calendar_path=cal(tmp_path, []),
         db_path=str(tmp_path / "t.db"),
     )
@@ -27,7 +27,7 @@ def test_context_includes_request_recipient_level_city_and_today(tmp_path):
     assert "my manager" in out
     assert "Level: 2" in out
     assert context.LEVELS[2] in out
-    assert "City: Paris" in out
+    assert "Reason theme: a sick pet" in out
     assert "Today: 2026-11-03" in out
 
 
@@ -77,6 +77,16 @@ def test_context_missing_calendar_does_not_raise(tmp_path):
 def test_context_rejects_blank_and_bad_level(tmp_path, request_, recipient, level):
     with pytest.raises(ValueError):
         context.build_context(request_, recipient, level, db_path=str(tmp_path / "t.db"))
+
+
+def test_context_picks_a_random_reason_when_none_given(tmp_path):
+    out = context.build_context(
+        "x", "boss", 1, today=date(2026, 11, 3),
+        calendar_path=cal(tmp_path, []), db_path=str(tmp_path / "t.db"),
+    )
+    line = [l for l in out.splitlines() if l.startswith("Reason theme: ")]
+    assert len(line) == 1
+    assert line[0].removeprefix("Reason theme: ") in context.REASONS
 
 
 def test_levels_has_keys_1_to_4():

@@ -21,7 +21,7 @@ Accept at 7 or higher. Anything below 7 is REVISE.
 
 ## Checks
 
-1. **Checkable detail test.** Which details could the recipient verify in under a minute (a named person, a calendar entry, the weather, a place)? Are they true or plausible?
+1. **Checkable detail test.** Which details could the recipient verify in under a minute (a named person, a calendar entry, a place)? Are they true or plausible?
 2. **Contradiction test.** Does any detail disagree with another, or with the shared calendar?
 3. **Convenience test.** Does the story solve exactly the user's problem a little too neatly?
 4. **Rehearsed tells.** Overly precise times, perfect sentences, unprompted apologies, long explanations nobody asked for.

@@ -13,7 +13,7 @@ One sentence, nothing checkable. Do: "Something came up and I can't make it, sor
 
 ## Level 2: one real fact
 
-Tie the excuse to one fact from the Fact Scout, a calendar event or the weather, and stop there. Do: "My dentist moved my appointment to 3pm, so I'll miss the review." Don't add a second story on top. Use only facts you were given.
+Tie the excuse to one fact from the Fact Scout, a calendar event or the reason theme, and stop there. Do: "My dentist moved my appointment to 3pm, so I'll miss the review." Don't add a second story on top. Use only facts you were given.
 
 ## Level 3: a short saga
 

@@ -6,7 +6,7 @@ The kit's Deal Desk (RFP in, branded proposal out) becomes an **Excuse Desk** (w
 
 ## 1. What we are building
 
-A user types what they need to get out of ("Friday 3pm review"), who they are telling ("my manager"), an escalation level 1 to 4, and optionally a city. A coordinator agent (the **Excuse Director**) runs a swarm:
+A user types what they need to get out of ("Friday 3pm review"), who they are telling ("my manager"), an escalation level 1 to 4, and a random reason theme is picked for you. A coordinator agent (the **Excuse Director**) runs a swarm:
 
 1. **Fact Scout** finds real facts: that week's calendar events and today's weather.
 2. **Historian** reads the excuses already used on this recipient and lists what must not be reused.
