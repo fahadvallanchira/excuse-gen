@@ -1,253 +1,120 @@
-# Excuse Generator Agent: Hackathon Build Plan
+# Excuse Swarm: Spec
 
-Stack: Python 3.11+, `anthropic` SDK (Claude API), Streamlit UI, SQLite for memory.
-Target: a working demo in 4 to 6 hours with a team of 2 to 4.
+Built on the [specialist-swarm starter kit](https://github.com/rosscrooke/specialist-swarm): Claude Managed Agents multi-agent (coordinator + specialist sub-agents) with custom Skills. Stack: Python 3.11+, `anthropic` SDK, Streamlit, SQLite, pydantic.
+
+The kit's Deal Desk (RFP in, branded proposal out) becomes an **Excuse Desk** (what you need to get out of in, a vetted excuse out). Same architecture: a coordinator fans work out to specialists in parallel, each with its own skill, then synthesises. We keep the kit's file shape (`create_*.py`, `skills/`, event-stream runner) and add a Streamlit front end and SQLite memory.
 
 ## 1. What we are building
 
-A user types what they need to get out of ("Friday 3pm status meeting", "dinner with Raj").
-The agent:
+A user types what they need to get out of ("Friday 3pm review"), who they are telling ("my manager"), an escalation level 1 to 4, and optionally a city. A coordinator agent (the **Excuse Director**) runs a swarm:
 
-1. Gathers context with tools (calendar, weather, past excuses).
-2. Drafts an excuse at the chosen escalation level.
-3. Runs a "skeptic" subagent that tries to poke holes and scores believability.
-4. Revises until the skeptic is satisfied, or gives up after 2 rounds.
-5. Shows the final excuse plus the skeptic's verdict in the UI.
-6. Saves the excuse to memory so it is never reused on the same person.
+1. **Fact Scout** finds real facts: that week's calendar events and today's weather.
+2. **Historian** reads the excuses already used on this recipient and lists what must not be reused.
+3. **Recipient Profiler** says what this kind of person would believe and what tone suits them.
+4. **Storyteller** drafts the excuse at the chosen level using its playbook skill.
+5. **Critic** plays the suspicious recipient, scores believability 1 to 10 and lists holes.
+6. The Director revises with the Storyteller until the Critic accepts, at most 2 revisions.
+7. The Director returns one JSON result: every round with excuse, score, holes and verdict.
 
-Nothing is ever sent automatically. The UI has a "Copy" button and a "Mark as used" button.
-That approval step is a feature, not a shortcut.
+Steps 1 to 3 run in parallel (one message, three delegations). The Streamlit page shows the thread fan-out live, then every round, then the final excuse with a Copy button and "Mark as used". Nothing is ever sent automatically.
 
 ## 2. Architecture
 
 ```
-┌────────────┐   prompt + level   ┌──────────────┐  tools   ┌──────────────────┐
-│ Streamlit  │ ─────────────────► │ Excuse Agent │ ───────► │ calendar / weather│
-│    UI      │                    │ (Opus 5.5)   │ ◄─────── │ / memory (sqlite) │
-│            │ ◄───────────────── │              │          └──────────────────┘
-│            │  excuse + verdict  └──────┬───────┘
-└────────────┘                           │ draft
-                                         ▼
-                                  ┌──────────────┐
-                                  │   Skeptic    │  structured JSON:
-                                  │ (Haiku 5.5)  │  score, holes, verdict
-                                  └──────────────┘
+Streamlit app.py ──► swarm_client.run_swarm() ──► Managed Agents session
+   ▲   live events (thread spawned, reply, ...)        │
+   │                                                    ▼
+   │                                          Excuse Director (coordinator)
+   │                    ┌──────────────┬────────────┬────┴───────┬──────────────┐
+   │                    ▼              ▼            ▼            ▼              ▼
+   │               Fact Scout     Historian     Profiler    Storyteller       Critic
+   │               (web fetch,    (reads past   (skill:     (skill:           (skill:
+   │                fact-         excuses)      recipient-   excuse-           believability-
+   │                grounding)                  personas)    playbook)         rubric)
+   │
+   └── SwarmResult (pydantic) ◄── Director's final JSON
+SQLite (memory.py): past excuses per recipient. The app inlines them into the session
+message via context.build_context(); "Mark as used" writes new ones.
 ```
 
-Two Claude roles:
+Context is inlined into the user message as documents, the way the kit inlines the RFP and past wins. Calendar events and past excuses come from our app. Weather is fetched by the Fact Scout with the agent toolset's web fetch from Open-Meteo.
 
-- **Excuse Agent** on `claude-opus-5-5` with the SDK tool runner. It decides which tools to call.
-- **Skeptic** on `claude-haiku-5-5` with structured output. It never sees the tools, only the excuse and the recipient. Cheap and fast, so we can loop.
+## 3. Roles and models
 
-## 3. Repo layout
+| Agent | Job | Skill | Model |
+|---|---|---|---|
+| Excuse Director | orchestrates, synthesises, returns JSON | none | `claude-opus-5-5` |
+| Fact Scout | calendar and weather facts | `fact-grounding` | `claude-haiku-5-5` |
+| Historian | past excuses, repeat ban | none | `claude-haiku-5-5` |
+| Recipient Profiler | tone and what this person believes | `recipient-personas` | `claude-sonnet-5-5` |
+| Storyteller | drafts the excuse per level | `excuse-playbook` | `claude-sonnet-5-5` |
+| Critic | scores and pokes holes | `believability-rubric` | `claude-sonnet-5-5` |
+
+The starter kit uses `claude-opus-4-7`, `claude-sonnet-4-6` and `claude-haiku-4-5-20251001`. Managed Agents is a research preview, so the first real run must confirm the workspace accepts the Claude 5 IDs above. If it does not, swap the three constants for the kit's IDs; nothing else changes.
+
+## 4. Escalation levels
+
+1. Vague and low-risk ("something came up"). No checkable details.
+2. Tied to one real fact from the calendar or weather. Short.
+3. A short saga with two or three consistent supporting details.
+4. Pre-emptive: scan the next seven days, pick the meetings the user most wants to skip, one excuse per meeting (one line per meeting, prefixed with the meeting title and a colon).
+
+## 5. Repo layout
 
 ```
-exc-gen/              # repo root
-├── app.py            # Streamlit UI
-├── agent.py          # generate_excuse(): tool runner + revision loop
-├── skeptic.py        # critique(): structured-output call
-├── tools.py          # @beta_tool functions: calendar, weather, memory
-├── memory.py         # SQLite helpers (past excuses)
-├── prompts.py        # system prompts, one per role
-├── data/
-│   └── calendar.json # fake calendar for the demo
-├── requirements.txt  # anthropic, streamlit, pydantic, requests
-└── .env.example      # ANTHROPIC_API_KEY=
+exc-gen/
+├── app.py                     # Streamlit UI (live event feed, rounds, copy, Mark as used)
+├── context.py                 # LEVELS, build_context(): inlines calendar + past excuses
+├── memory.py                  # SQLite past excuses
+├── schema.py                  # Round, SwarmResult, parse_result()
+├── swarm_client.py            # run_swarm(): session, event stream, result parsing
+├── specialists.py             # SPECIALISTS definitions, SKILL_TO_SPECIALIST
+├── coordinator.py             # COORDINATOR_SYSTEM, build_coordinator_params()
+├── create_specialists.py      # kit-style: creates 5 sub-agents -> .specialist_ids.json
+├── upload_skills.py           # kit-style: uploads skills/, attaches to specialists
+├── create_coordinator.py      # kit-style: creates Director -> .coordinator_id
+├── setup_environment.py       # kit-style: cloud environment -> .environment_id
+├── skills/                    # fact-grounding, recipient-personas, excuse-playbook, believability-rubric
+├── data/calendar.json         # seed calendar
+├── scripts/                   # smoke.py, seed_demo.py
+├── tests/
+└── docs/
 ```
 
-## 4. Build phases
+Provisioning order (once per workspace): `setup_environment.py`, `create_specialists.py`, `upload_skills.py`, `create_coordinator.py`. The ID files (`.environment_id`, `.specialist_ids.json`, `.skill_ids.json`, `.coordinator_id`) are gitignored.
 
-### Phase 0: Setup (20 min)
+## 6. Result contract
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install anthropic streamlit pydantic requests
-export ANTHROPIC_API_KEY=sk-ant-...
+The Director's last message is exactly one JSON object:
+
+```json
+{"rounds": [{"excuse": "...", "believability": 4, "holes": ["..."], "verdict": "revise"},
+            {"excuse": "...", "believability": 8, "holes": [], "verdict": "accept"}]}
 ```
 
-Smoke test: one `client.messages.create` call that returns "hello". Everyone on the team confirms their key works before splitting up.
+`verdict` is `accept` (Critic score 7 or more) or `revise`. At most 3 rounds. If the Director returns prose instead, the app falls back to showing it as a single unscored round.
 
-### Phase 1: Tools (45 min)
+## 7. Demo script (3 minutes)
 
-`tools.py` uses the `@beta_tool` decorator. The docstring becomes the tool description, so write it for Claude, not for humans.
+1. Level 1 for "team lunch". Watch five threads spawn, the Critic accepts round one.
+2. Level 3 for "Friday 3pm review with my manager". Narrate the live fan-out, open the rounds: Critic rejects round one, the Storyteller fixes the holes, round two passes.
+3. "Mark as used", ask again for the same manager. The Historian's list now bans the saved excuse.
+4. Level 4: pre-emptive plan for next week's calendar.
 
-```python
-from anthropic import beta_tool
-import json, requests
-from memory import past_excuses_for
-
-@beta_tool
-def get_calendar(date: str) -> str:
-    """Return the user's calendar events for a date (YYYY-MM-DD).
-    Use this to find real events that an excuse could reference or must avoid conflicting with.
-    """
-    events = json.load(open("data/calendar.json"))
-    return json.dumps([e for e in events if e["date"] == date])
-
-@beta_tool
-def get_weather(city: str) -> str:
-    """Return today's weather for a city. Useful for weather-based excuses."""
-    # Open-Meteo needs no API key. Hardcode a few cities for the demo if short on time.
-    r = requests.get("https://api.open-meteo.com/v1/forecast",
-                     params={"latitude": 51.5, "longitude": -0.12, "current_weather": True})
-    return r.text
-
-@beta_tool
-def recall_excuses(recipient: str) -> str:
-    """Return excuses already used on this recipient, so the agent does not repeat them."""
-    return json.dumps(past_excuses_for(recipient))
-```
-
-`memory.py` is a 20-line SQLite wrapper: `save_excuse(recipient, text, level)` and `past_excuses_for(recipient)`.
-
-Owner: one person. Done when each tool runs standalone from a Python shell.
-
-### Phase 2: Skeptic (45 min)
-
-`skeptic.py` uses `client.messages.parse` with a Pydantic model so we never parse JSON by hand.
-
-```python
-from pydantic import BaseModel
-import anthropic
-
-class Verdict(BaseModel):
-    believability: int          # 1 to 10
-    holes: list[str]            # specific problems
-    follow_up_question: str     # what a suspicious recipient would ask
-    verdict: str                # "accept" or "revise"
-
-client = anthropic.Anthropic()
-
-def critique(excuse: str, recipient: str, context: str) -> Verdict:
-    response = client.messages.parse(
-        model="claude-haiku-5-5",
-        max_tokens=2000,
-        system=SKEPTIC_SYSTEM,   # "You are the suspicious recipient. Find holes."
-        messages=[{"role": "user", "content":
-            f"Recipient: {recipient}\nContext: {context}\nExcuse: {excuse}"}],
-        output_format=Verdict,
-    )
-    return response.parsed_output
-```
-
-Owner: one person. Done when a hand-written bad excuse scores low and a good one scores high.
-
-### Phase 3: Excuse Agent and revision loop (60 min)
-
-`agent.py` runs the tool runner, then the critique loop.
-
-```python
-import anthropic
-from tools import get_calendar, get_weather, recall_excuses
-from skeptic import critique
-from prompts import AGENT_SYSTEM
-
-client = anthropic.Anthropic()
-
-def draft(request: str, recipient: str, level: int, feedback: str | None = None) -> str:
-    user = f"Escape: {request}\nRecipient: {recipient}\nLevel: {level}"
-    if feedback:
-        user += f"\nThe skeptic rejected the last draft. Fix these holes: {feedback}"
-    runner = client.beta.messages.tool_runner(
-        model="claude-opus-5-5",
-        max_tokens=16000,
-        system=AGENT_SYSTEM,
-        tools=[get_calendar, get_weather, recall_excuses],
-        messages=[{"role": "user", "content": user}],
-    )
-    final = runner.until_done()
-    return next(b.text for b in final.content if b.type == "text")
-
-def generate_excuse(request, recipient, level, max_rounds=2):
-    history = []
-    feedback = None
-    for _ in range(max_rounds + 1):
-        text = draft(request, recipient, level, feedback)
-        verdict = critique(text, recipient, request)
-        history.append((text, verdict))
-        if verdict.verdict == "accept":
-            break
-        feedback = "; ".join(verdict.holes)
-    return history   # UI shows every round, which is half the comedy
-```
-
-System prompt notes for `AGENT_SYSTEM`:
-
-- Describe the four escalation levels explicitly.
-- Tell it to call `recall_excuses` first, every time, and never reuse one.
-- Tell it to prefer real calendar or weather facts over invented ones at levels 1 and 2.
-- Ask for the excuse only as final output, no preamble, so the UI can show it cleanly.
-
-Owner: one person. Done when `generate_excuse("Friday standup", "my manager", 2)` returns a history list from a Python shell.
-
-### Phase 4: Streamlit UI (60 min)
-
-`app.py` is a single page.
-
-```python
-import streamlit as st
-from agent import generate_excuse
-from memory import save_excuse
-
-st.title("Excuse Generator")
-request = st.text_input("What do you need to get out of?")
-recipient = st.text_input("Who are you telling?")
-level = st.slider("Escalation level", 1, 4, 2)
-
-if st.button("Generate") and request:
-    with st.spinner("Consulting the calendar, the weather, and your conscience..."):
-        history = generate_excuse(request, recipient, level)
-    for i, (text, verdict) in enumerate(history, 1):
-        with st.expander(f"Round {i}: believability {verdict.believability}/10", expanded=(i == len(history))):
-            st.write(text)
-            if verdict.holes:
-                st.caption("Skeptic found: " + "; ".join(verdict.holes))
-    final_text = history[-1][0]
-    st.code(final_text)                      # built-in copy button
-    if st.button("Mark as used"):
-        save_excuse(recipient, final_text, level)
-        st.success("Saved. This one will never be used on them again.")
-```
-
-Run with `streamlit run app.py`.
-
-Owner: one person, can start in parallel with Phase 3 using a stubbed `generate_excuse`.
-
-### Phase 5: Polish and demo prep (45 min)
-
-- Seed `data/calendar.json` with funny but plausible events for demo day.
-- Pre-save two excuses in memory so the "never repeat" rule shows on stage.
-- Add a level 4 "Pre-emptive" mode: scan next week's calendar and propose excuses for meetings it predicts you will want to skip.
-- Add a believability sparkline across rounds if time allows.
-
-## 5. Demo script (3 minutes)
-
-1. Level 1 excuse for "team lunch". Skeptic accepts round one. Boring, fast.
-2. Level 3 excuse for "Friday 3pm review with my manager". Show the agent calling the calendar and weather tools. Skeptic rejects round one, agent revises, round two passes. Open the expanders.
-3. Click "Mark as used", then ask for another excuse for the same manager. Show it avoids the saved one.
-4. Level 4: let it pre-emptively plan next week.
-
-## 6. Risks and cuts
+## 8. Risks and cuts
 
 | Risk | Mitigation |
 |---|---|
-| Weather API flaky on venue wifi | Hardcode three cities in `get_weather` as fallback |
-| Opus latency on stage | Set `output_config={"effort": "low"}` on the draft call for the demo |
-| Skeptic too harsh, loops forever | `max_rounds=2` hard cap, always show last draft |
-| Safety refusal on edgy prompts | Enable server-side fallbacks (`fallbacks="default"` with the `server-side-fallback-2026-07-01` beta) and check `stop_reason` |
-| Team runs out of time | Cut Phase 5 first, then the weather tool. Calendar plus memory plus skeptic is the core |
+| Managed Agents is a research preview; workspace may lack access | Check access in the first 10 minutes (smoke script). Fallback: the old single-agent loop is described in git history |
+| Claude 5 model IDs rejected in Managed Agents | Swap the three model constants for the kit's IDs |
+| Director returns prose instead of JSON | `parse_result` fallback, pinned by a test |
+| Session never goes idle | `run_swarm` has a `max_seconds` deadline |
+| Weather unreachable on venue wifi | Fact Scout is told to say "weather unavailable" and continue |
+| Team runs out of time | Cut level 4, then the Profiler. Fact Scout, Storyteller, Critic and memory are the core |
 
-## 7. Team split for 4 people
+## 9. Stretch (from the kit's stretch goals)
 
-- Person A: tools and memory (Phase 1)
-- Person B: skeptic (Phase 2), then prompt tuning
-- Person C: agent loop (Phase 3)
-- Person D: UI (Phase 4) against a stub, then integration
-- Everyone: Phase 5 and demo rehearsal
-
-## 8. Stretch ideas if you finish early
-
-- Alibi Mode: two users, one shared story, the agent keeps both consistent.
-- Honesty Slider: at zero it just tells the truth, which is the hardest excuse to write.
-- Voice: pipe the final excuse through a TTS library and play it in the UI.
-- Recipient personas: "strict manager", "chill friend", "suspicious partner" change the skeptic prompt.
+- S3 Memory across deals: Memory tool so the Director learns which excuses landed.
+- S9 Voting: three Critics (conservative, balanced, aggressive) and the Director takes the lowest score.
+- S6 Notification: a specialist that posts progress to Slack.
+- Always-on: a scheduled run that pre-drafts excuses for next week's calendar and queues them for approval.

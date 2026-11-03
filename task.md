@@ -1,739 +1,265 @@
-# Excuse Generator: Tasks for 4 Developers + Integration
+# Excuse Swarm: Tasks for 4 Developers + Integration
 
-Spec: [docs/spec.md](docs/spec.md). Full plan: [docs/superpowers/plans/2026-11-03-excuse-generator.md](docs/superpowers/plans/2026-11-03-excuse-generator.md).
-Every section below is self-contained: it carries the exact code, tests and steps its owner needs. Step and Task numbers inside copied text refer to the original plan; ignore them, follow the order inside your own section.
+Spec: [docs/spec.md](docs/spec.md). Full plan: [docs/superpowers/plans/2026-11-03-excuse-swarm.md](docs/superpowers/plans/2026-11-03-excuse-swarm.md). Starter kit this is built on: https://github.com/rosscrooke/specialist-swarm (read its `README.md` and the `create_*.py` scripts once; the Managed Agents calls you need are copied from there).
+Each task below is self-contained: exact tests, signatures and steps. Task numbers (Task 1 to 5) in the plan map to people A to E.
 
 ## How we work
 
 1. Five independent tasks: **A, B, C, D** (build) and **E** (integration). Own files, own branch, own PR. No file is owned by two people.
-2. Build against the **Contracts** below. If you import another person's module, do not wait: copy the matching file from **Stubs** into a scratch folder outside git (for example `/tmp/stubs/`) and run with `PYTHONPATH=/tmp/stubs:.`. Never commit stubs. Delete them once the real module is on `main`.
+2. Build against the **Frozen interfaces** below. If you import another person's module, do not wait: copy the matching file from **Stubs** into a scratch folder outside git (for example `/tmp/stubs/`) and run with `PYTHONPATH=/tmp/stubs:.`. Never commit stubs. Delete them once the real module is on `main`.
 3. When your "Done when" passes, open a PR to `main`. PRs can merge in any order.
 4. After A to D are merged, **E** runs end to end on `main`.
-5. Everyone first reads "Global Constraints" and "Review Focus" below.
+5. Everyone reads "Global Constraints" and "Review Focus" first.
+6. Managed Agents is a research preview. Anyone who runs a real provisioning script needs a workspace API key with access (check with E's `scripts/smoke.py`).
 
-Setup (everyone, run from the repo root):
+Setup (everyone, from the repo root):
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install anthropic streamlit pydantic requests pytest
-export ANTHROPIC_API_KEY=sk-ant-...   # only needed for manual real-API checks, never for pytest
+pip install anthropic streamlit pydantic pytest python-dotenv
+export ANTHROPIC_API_KEY=sk-ant-...   # only for manual real-API steps, never for pytest
+mkdir -p tests && touch tests/__init__.py   # include this empty file in your PR
 ```
-
-Everyone runs `mkdir -p tests && touch tests/__init__.py` and includes that empty file in their PR (it makes `pytest` put the repo root on the import path). Identical empty files merge cleanly.
-
-## Global Constraints (from the plan)
-
-- Project lives at the root of your local clone of the `excuse-gen` git repo. Every command below runs from that directory.
-- Use a venv inside the repo, created in Task 1: `source .venv/bin/activate` before any command.
-- Model IDs are exactly `claude-opus-5-5` (agent) and `claude-haiku-5-5` (skeptic). Never append date suffixes.
-- Never put `thinking`, `budget_tokens`, `temperature`, or forced `tool_choice` in any API call. These return 400 on these models.
-- Parse structured output with `client.messages.parse(..., output_format=Model)` and read `response.parsed_output`. Never parse JSON from text by hand.
-- Every function that calls the Claude API accepts a `client` parameter with a module-level default so tests can inject a fake. No test in this plan hits the real API.
-- Nothing is ever sent to a recipient. The only side effects are SQLite writes.
-- The repo already exists with an initial commit on `main`. Commit after each task. Commit messages end with the `Co-Authored-By` line your harness specifies, if any. Do not push unless asked.
-- Secrets come from the `ANTHROPIC_API_KEY` environment variable. Never hardcode a key or commit `.env`.
-
-## Review Focus (from the plan)
-
-1. **Empty or whitespace-only request or recipient.** `generate_excuse` must raise `ValueError` rather than call the API, and the UI must not call it. Test pinned in Task 6.
-2. **Skeptic never accepts.** The loop must stop after `max_rounds` revisions and return the last draft with its verdict, never loop forever or raise. Test pinned in Task 6.
-3. **Agent response has no text block** (refusal, or `max_tokens` hit mid-tool-call). `draft` must return the fixed string `"The agent declined to produce an excuse. Try a lower level."` instead of raising `StopIteration`. Test pinned in Task 6.
-4. **Recipient spelled differently across runs** ("My Manager" vs "my manager "). Memory must normalize to lowercase, stripped, so the no-repeat rule still works. Test pinned in Task 2.
-5. **Unknown city or weather API down** on venue wifi. `weather_for` must return a usable string, never raise. Test pinned in Task 3.
 
 ## Ownership
 
-| Task | Branch | Files (only these) |
-|---|---|---|
-| **A** Tools and memory | `dev-a` | `memory.py`, `services.py`, `tools.py`, `data/calendar.json`, `data/.gitkeep`, `requirements.txt`, `.gitignore`, `.env.example`, `README.md`, `tests/test_memory.py`, `tests/test_services.py` |
-| **B** Skeptic and prompts | `dev-b` | `prompts.py`, `skeptic.py`, `tests/test_skeptic.py` |
-| **C** Agent loop | `dev-c` | `agent.py`, `tests/test_agent.py` |
-| **D** UI | `dev-d` | `app.py` |
-| **E** Integration and demo | `dev-e` | `tests/test_integration.py`, `scripts/seed_demo.py`, `scripts/smoke.py`, `docs/demo.md` |
+| Task | Branch | Plan task | Files (only these) |
+|---|---|---|---|
+| **A** Memory and context | `dev-a` | Task 1 | `memory.py`, `context.py`, `data/calendar.json`, `data/.gitkeep`, `requirements.txt`, `.env.example`, `.gitignore`, `README.md`, `tests/test_memory.py`, `tests/test_context.py` |
+| **B** Specialists and skills | `dev-b` | Task 2 | `specialists.py`, `create_specialists.py`, `upload_skills.py`, `skills/*/SKILL.md`, `tests/test_specialists.py` |
+| **C** Coordinator and swarm client | `dev-c` | Task 3 | `schema.py`, `coordinator.py`, `swarm_client.py`, `create_coordinator.py`, `setup_environment.py`, `tests/test_schema.py`, `tests/test_coordinator.py`, `tests/test_swarm_client.py` |
+| **D** Streamlit UI | `dev-d` | Task 4 | `app.py`, `tests/test_app.py` |
+| **E** Integration and demo | `dev-e` | Task 5 | `tests/test_integration.py`, `scripts/seed_demo.py`, `scripts/smoke.py`, `docs/demo.md` |
 
-## Contracts (frozen, change only by telling everyone)
+`tests/__init__.py` is the one shared file: it is empty in every PR, so identical copies merge cleanly.
+
+## Global Constraints
+
+- Run every command from the repo root. Use a venv in the repo: `python3 -m venv .venv && source .venv/bin/activate && pip install anthropic streamlit pydantic pytest python-dotenv`.
+- Model constants (spec section 3): Director `claude-opus-5-5`; Profiler, Storyteller, Critic `claude-sonnet-5-5`; Fact Scout, Historian `claude-haiku-5-5`. Define them as module constants in the file that uses them. No date suffixes.
+- Managed Agents calls use a client built with `Anthropic(default_headers={"anthropic-beta": "managed-agents-2026-04-01"})`. Agents use `tools=[{"type": "agent_toolset_20260401"}]`.
+- Never put `thinking`, `budget_tokens`, `temperature` or forced `tool_choice` in any API call.
+- Every function that talks to the API takes a `client` parameter defaulting to `None` and builds the real client lazily, so importing a module never needs a key. No test calls the real API.
+- Nothing is ever sent to a recipient. The only side effect is SQLite writes.
+- Secrets come from `ANTHROPIC_API_KEY`. Never hardcode a key or commit `.env`. Generated ID files (`.environment_id`, `.specialist_ids.json`, `.skill_ids.json`, `.coordinator_id`, `.last_session_id`) are gitignored.
+- Result contract (spec section 6): the Director's final message is one JSON object `{"rounds": [{"excuse", "believability", "holes", "verdict"}]}`; `verdict` is `accept` or `revise`; at most 3 rounds.
+- Critic reply format (frozen, parsed by the Director): first line `VERDICT: ACCEPT` or `VERDICT: REVISE`, second line `SCORE: <1-10>`, then `HOLES:` followed by one `- ` bullet per hole (none if accepted). Accept means score 7 or more.
+
+## Review Focus
+
+1. **Blank request or recipient, or level outside 1 to 4.** `build_context` and `run_swarm` raise `ValueError` before any API call; the UI warns instead of calling. Tests in Tasks 1, 3, 4.
+2. **Director returns prose or malformed JSON instead of the result object.** `parse_result` falls back to one unscored round holding the prose; empty output raises `ValueError`. Tests in Task 3.
+3. **Stream ends without `session.status_idle`, or never ends.** `run_swarm` uses what it collected if the stream ends, raises `RuntimeError` if nothing was collected, and raises `TimeoutError` after `max_seconds`. Tests in Task 3.
+4. **Recipient spelled differently across runs** ("My Manager " vs "my manager"). Memory normalises to lowercase, stripped; `build_context` uses the same normalisation. Tests in Task 1.
+5. **Calendar file missing or corrupt, or no past excuses yet.** `build_context` still returns, with explicit "(calendar unavailable)" and "(none)" text so the specialists do not invent data. Weather outage is handled in the Fact Scout prompt. Tests in Tasks 1 and 2.
+
+## Frozen interfaces
 
 ```python
-# memory.py (A)   recipient is stripped + lowercased; init_db also creates the parent dir
-DB_PATH: str = "data/excuses.db"
-normalize(recipient: str) -> str
-init_db(db_path: str = DB_PATH) -> None
+# memory.py (Task 1)
+DB_PATH = "data/excuses.db"
+normalize(recipient: str) -> str                         # strip + lower
+init_db(db_path: str = DB_PATH) -> None                  # also creates the parent dir
 save_excuse(recipient: str, text: str, level: int, db_path: str = DB_PATH) -> None
-past_excuses_for(recipient: str, db_path: str = DB_PATH) -> list[str]     # oldest first
+past_excuses_for(recipient: str, db_path: str = DB_PATH) -> list[str]   # oldest first
 
-# services.py (A)
-CALENDAR_PATH: str = "data/calendar.json"
-CITIES: dict[str, tuple[float, float]]
-calendar_events(date: str, path: str = CALENDAR_PATH) -> list[dict]
-weather_for(city: str, get=requests.get) -> str                          # never raises
+# context.py (Task 1)
+LEVELS: dict[int, str]                                   # keys 1..4, one-line descriptions
+build_context(request: str, recipient: str, level: int, city: str = "London",
+              today: date | None = None, calendar_path: str = "data/calendar.json",
+              db_path: str = DB_PATH) -> str
 
-# tools.py (A)    @beta_tool objects, each (arg: str) -> str
-get_calendar, get_weather, recall_excuses
-ALL_TOOLS: list = [get_calendar, get_weather, recall_excuses]
+# schema.py (Task 3)
+class Round(BaseModel): excuse: str; believability: int; holes: list[str]; verdict: Literal["accept","revise"]
+class SwarmResult(BaseModel): rounds: list[Round]        # property final_excuse -> str (last round)
+parse_result(text: str) -> SwarmResult
 
-# prompts.py (B)
-LEVELS: dict[int, str]          # keys 1..4
-AGENT_SYSTEM: str
-SKEPTIC_SYSTEM: str
+# swarm_client.py (Task 3)
+run_swarm(request, recipient, level, city="London", client=None, on_event=None,
+          max_seconds: float = 300, clock=time.monotonic, ids_dir: str = ".") -> SwarmResult
+# on_event(event: dict) with keys kind in {"thread_created","thread_running","delegate","reply","tool","message"}, agent: str, text: str
 
-# skeptic.py (B)
-class Verdict(BaseModel): believability: int; holes: list[str]; follow_up_question: str; verdict: Literal["accept", "revise"]
-SKEPTIC_MODEL: str = "claude-haiku-5-5"
-critique(excuse: str, recipient: str, context: str, client=None) -> Verdict
+# specialists.py (Task 2)
+SPECIALISTS: list[dict]            # keys: key, name, model, system   (5 entries: fact_scout, historian, profiler, storyteller, critic)
+SKILL_TO_SPECIALIST: dict[str, str]
+build_agent_params(spec: dict) -> dict
 
-# agent.py (C)
-AGENT_MODEL: str = "claude-opus-5-5"
-DECLINED: str = "The agent declined to produce an excuse. Try a lower level."
-draft(request: str, recipient: str, level: int, feedback: str | None = None, client=None) -> str
-generate_excuse(request, recipient, level, max_rounds: int = 2, draft_fn=draft, critique_fn=critique) -> list[tuple[str, Verdict]]
+# coordinator.py (Task 3)
+COORDINATOR_SYSTEM: str
+build_coordinator_params(specialist_ids: dict[str, str]) -> dict
 ```
 
 ---
 
-# Task A: Tools and memory
-
-Branch `dev-a`. **Depends on nobody.** Produces `memory.py`, `services.py`, `tools.py`, seed calendar, project config.
-
-## A1. Scaffold files you own
-
-Do plan Task 1 steps below. (The smoke script and its run belong to Task E.) Do not create `scripts/smoke.py`.
-
-- [ ] **Step 1: Create the folders and the venv**
-
-```bash
-# run from the repo root
-mkdir -p data scripts tests
-touch tests/__init__.py data/.gitkeep
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Expected: `python --version` prints 3.11 or newer.
-
-- [ ] **Step 2: Write `requirements.txt`**
-
-```
-anthropic
-streamlit
-pydantic
-requests
-pytest
-```
-
-- [ ] **Step 3: Write `.gitignore`**
-
-```
-.venv/
-.env
-data/excuses.db
-__pycache__/
-.pytest_cache/
-```
-
-- [ ] **Step 4: Write `.env.example`**
-
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-- [ ] **Step 5: Install dependencies**
-
-Run: `source .venv/bin/activate && pip install -r requirements.txt`
-Expected: ends with `Successfully installed ...` listing `anthropic` and `streamlit`.
-
-- [ ] **Step 8: Write a one-paragraph `README.md`**
-
-State: what the app does (one sentence), how to install (`pip install -r requirements.txt`), how to run (`streamlit run app.py`), and that `ANTHROPIC_API_KEY` must be set.
-
-## A2. Memory (SQLite)
-
-Extra requirement over the plan text: `init_db` must create the parent directory of `db_path` (`os.makedirs(os.path.dirname(db_path), exist_ok=True)` when the dirname is non-empty), so nobody needs the `data/` folder to exist first.
-
-**Files:**
-- Create: `memory.py`
-- Test: `tests/test_memory.py`
-
-**Interfaces:**
-- Produces:
-  - `DB_PATH: str = "data/excuses.db"` (module constant)
-  - `init_db(db_path: str = DB_PATH) -> None` creates table `excuses(id INTEGER PRIMARY KEY, recipient TEXT, text TEXT, level INTEGER, created_at TEXT)` if missing.
-  - `save_excuse(recipient: str, text: str, level: int, db_path: str = DB_PATH) -> None`
-  - `past_excuses_for(recipient: str, db_path: str = DB_PATH) -> list[str]` returns texts, oldest first.
-  - `normalize(recipient: str) -> str` returns `recipient.strip().lower()`.
-
-- [ ] **Step 1: Write the failing tests**
-
-```python
-# tests/test_memory.py
-from memory import init_db, save_excuse, past_excuses_for, normalize
-
-def test_save_and_recall(tmp_path):
-    db = str(tmp_path / "t.db")
-    init_db(db)
-    save_excuse("my manager", "dentist", 1, db_path=db)
-    save_excuse("my manager", "flood", 2, db_path=db)
-    assert past_excuses_for("my manager", db_path=db) == ["dentist", "flood"]
-
-def test_recall_is_per_recipient(tmp_path):
-    db = str(tmp_path / "t.db")
-    init_db(db)
-    save_excuse("raj", "dentist", 1, db_path=db)
-    assert past_excuses_for("my manager", db_path=db) == []
-
-def test_recipient_is_normalized(tmp_path):
-    db = str(tmp_path / "t.db")
-    init_db(db)
-    save_excuse("  My Manager ", "dentist", 1, db_path=db)
-    assert past_excuses_for("my manager", db_path=db) == ["dentist"]
-
-def test_normalize():
-    assert normalize("  My Manager ") == "my manager"
-
-def test_init_db_is_idempotent(tmp_path):
-    db = str(tmp_path / "t.db")
-    init_db(db)
-    init_db(db)
-    assert past_excuses_for("anyone", db_path=db) == []
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `pytest tests/test_memory.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'memory'`
-
-- [ ] **Step 3: Implement `memory.py`**
-
-Use `sqlite3` from the standard library. `save_excuse` and `past_excuses_for` both call `init_db(db_path)` first so callers never need to remember. Store `created_at` as `datetime.now().isoformat()`. Order recall by `id`.
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `pytest tests/test_memory.py -v`
-Expected: 5 passed
-
-
-## A3. Calendar and weather services, seed data
-
-**Files:**
-- Create: `services.py`, `data/calendar.json`
-- Test: `tests/test_services.py`
-
-**Interfaces:**
-- Produces:
-  - `CALENDAR_PATH: str = "data/calendar.json"`
-  - `calendar_events(date: str, path: str = CALENDAR_PATH) -> list[dict]` returns events whose `"date"` equals `date` (format `YYYY-MM-DD`).
-  - `CITIES: dict[str, tuple[float, float]]` mapping lowercase city name to `(latitude, longitude)`. Must contain `"london"`, `"new york"`, `"san francisco"`, `"bangalore"`, `"dubai"`.
-  - `weather_for(city: str, get=requests.get) -> str` returns a one-line human string like `"London: 12.3°C, weather code 61"`. Unknown city falls back to London and the string starts with `"Unknown city, using London: "`. Any exception from `get` returns `"Weather unavailable for {city}."`.
-
-- [ ] **Step 1: Write `data/calendar.json`**
-
-A JSON list of at least six objects with keys `date` (`YYYY-MM-DD`), `time` (`HH:MM`), `title`, `attendees` (list of strings). Spread them over the next seven days from today (2026-11-03). Make at least two of them obviously skippable ("Q4 synergy alignment", "Mandatory fun: trust falls") and at least one that an excuse could blame ("Dentist", "Car service").
-
-- [ ] **Step 2: Write the failing tests**
-
-```python
-# tests/test_services.py
-import json
-from services import calendar_events, weather_for, CITIES
-
-def test_calendar_filters_by_date(tmp_path):
-    p = tmp_path / "cal.json"
-    p.write_text(json.dumps([
-        {"date": "2026-11-05", "time": "15:00", "title": "Review", "attendees": ["manager"]},
-        {"date": "2026-11-06", "time": "09:00", "title": "Standup", "attendees": []},
-    ]))
-    events = calendar_events("2026-11-05", path=str(p))
-    assert [e["title"] for e in events] == ["Review"]
-
-def test_calendar_empty_date(tmp_path):
-    p = tmp_path / "cal.json"
-    p.write_text("[]")
-    assert calendar_events("2026-11-05", path=str(p)) == []
-
-def test_seed_calendar_loads():
-    events = calendar_events("1999-01-01")
-    assert events == []  # proves the real file parses
-
-def test_cities_present():
-    for c in ["london", "new york", "san francisco", "bangalore", "dubai"]:
-        assert c in CITIES
-
-class FakeResp:
-    def __init__(self, payload): self._p = payload
-    def json(self): return self._p
-    def raise_for_status(self): pass
-
-def test_weather_known_city():
-    fake = lambda url, params=None, timeout=None: FakeResp(
-        {"current_weather": {"temperature": 12.3, "weathercode": 61}})
-    assert weather_for("London", get=fake) == "London: 12.3°C, weather code 61"
-
-def test_weather_unknown_city_falls_back_to_london():
-    fake = lambda url, params=None, timeout=None: FakeResp(
-        {"current_weather": {"temperature": 5.0, "weathercode": 0}})
-    out = weather_for("Atlantis", get=fake)
-    assert out.startswith("Unknown city, using London: ")
-
-def test_weather_network_failure_does_not_raise():
-    def boom(url, params=None, timeout=None): raise ConnectionError("no wifi")
-    assert weather_for("London", get=boom) == "Weather unavailable for London."
-```
-
-- [ ] **Step 3: Run tests to verify they fail**
-
-Run: `pytest tests/test_services.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'services'`
-
-- [ ] **Step 4: Implement `services.py`**
-
-`weather_for` calls `get("https://api.open-meteo.com/v1/forecast", params={"latitude": lat, "longitude": lon, "current_weather": True}, timeout=5)`. Read `resp.json()["current_weather"]["temperature"]` and `["weathercode"]`. Format the temperature with one decimal. Wrap the whole network section in `try/except Exception`.
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `pytest tests/test_services.py -v`
-Expected: 7 passed
-
-
-## A4. Tool wrappers
-
-- [ ] **Step 1: Write `tools.py`**
-
-Three functions decorated with `@beta_tool` (import: `from anthropic import beta_tool`). Each returns a string: JSON via `json.dumps` for lists, the plain string for weather. Docstrings are what Claude sees, so use these exactly:
-
-- `get_calendar(date: str) -> str`: `"""Return the user's calendar events for a date in YYYY-MM-DD format. Call this to find real events an excuse can reference, and to check what the user is supposedly skipping."""`
-- `get_weather(city: str) -> str`: `"""Return current weather for a city as one line. Call this when a weather-related excuse might be plausible."""`
-- `recall_excuses(recipient: str) -> str`: `"""Return a JSON list of excuses already used on this recipient. Always call this first and never reuse any of them."""`
-
-End the file with `ALL_TOOLS = [get_calendar, get_weather, recall_excuses]`.
-
-- [ ] **Step 2: Verify the tools import and have schemas**
-
-Run: `python -c "import tools; print(len(tools.ALL_TOOLS))"`
-Expected: `3`
-
-Interfaces consumed: `services.calendar_events`, `services.weather_for`, `memory.past_excuses_for`.
-
-### A "Done when"
-
-- `pytest tests/test_memory.py tests/test_services.py -v` shows 12 passed (5 + 7).
-- `python -c "import tools; print(len(tools.ALL_TOOLS))"` prints `3`.
-- Each tool runs standalone from a Python shell (spec Phase 1), for example `python -c "from services import weather_for; print(weather_for(\"London\"))"`.
-
-- [ ] **Commit and open a PR to `main`**
-
-```bash
-git checkout -b dev-a
-git add requirements.txt .gitignore .env.example README.md data memory.py services.py tools.py tests
-git commit -m "feat: memory, services, tools and project scaffold"
-git push -u origin dev-a
-```
-
-Then open a PR. Do not edit files owned by anyone else.
+# Task A: Memory and context
+
+Branch `dev-a`. **Depends on nobody.**
+
+**Files:** Create `memory.py`, `context.py`, `data/calendar.json`, `data/.gitkeep`, `requirements.txt`, `.env.example`, `.gitignore`, `README.md`. Test: `tests/__init__.py`, `tests/test_memory.py`, `tests/test_context.py`.
+
+**Interfaces:** Produces `memory.*` and `context.*` exactly as in Frozen interfaces. Consumes nothing.
+
+- [ ] **Step 1: Scaffold files.** `requirements.txt` lists `anthropic streamlit pydantic pytest python-dotenv`, one per line. `.gitignore` lists `.venv/ .env data/excuses.db __pycache__/ .pytest_cache/ outputs/ .environment_id .specialist_ids.json .skill_ids.json .coordinator_id .last_session_id`. `.env.example` has `ANTHROPIC_API_KEY=sk-ant-...`. `README.md` is one paragraph: what the app does, install, `streamlit run app.py`, set `ANTHROPIC_API_KEY`, and a pointer to `setup.md`.
+- [ ] **Step 2: Write `tests/test_memory.py`** with these tests (all use `tmp_path` DBs): `test_save_and_recall` (two saves for "my manager" return `["dentist","flood"]`), `test_recall_is_per_recipient`, `test_recipient_is_normalized` (save as `"  My Manager "`, recall `"my manager"`), `test_normalize`, `test_init_db_is_idempotent`, `test_init_db_creates_parent_dir` (db path `tmp_path/"sub"/"t.db"`).
+- [ ] **Step 3: Run `pytest tests/test_memory.py -v`.** Expected: FAIL, `ModuleNotFoundError: No module named 'memory'`.
+- [ ] **Step 4: Implement `memory.py`** with the Frozen signatures. Table `excuses(id INTEGER PRIMARY KEY, recipient TEXT, text TEXT, level INTEGER, created_at TEXT)`. `save_excuse` and `past_excuses_for` call `init_db` first. Order recall by `id`.
+- [ ] **Step 5: Run `pytest tests/test_memory.py -v`.** Expected: 6 passed.
+- [ ] **Step 6: Write `data/calendar.json`.** JSON list of at least 6 objects with `date` (`YYYY-MM-DD`), `time` (`HH:MM`), `title`, `attendees` (list), spread over 2026-11-03 to 2026-11-10; at least two obviously skippable ("Q4 synergy alignment", "Mandatory fun: trust falls"), at least one blameable ("Dentist", "Car service"), and one "Friday 3pm review" with "manager" on 2026-11-06.
+- [ ] **Step 7: Write `tests/test_context.py`** with a `cal(tmp_path, events)` helper writing a calendar file. Tests:
+  - `test_context_includes_request_recipient_level_city_and_today`: output contains the request, recipient, `Level: 2`, the level's `LEVELS[2]` text, `City: Paris`, and `Today: 2026-11-03` for `today=date(2026,11,3)`.
+  - `test_context_lists_next_seven_days_only`: with `today=date(2026,11,3)`, events on 2026-11-03 and 2026-11-09 appear and one on 2026-11-10 does not (window is today through today + 6 days).
+  - `test_context_lists_past_excuses_normalized`: save with `"  My Manager "`, build for `"my manager"`, text appears under a `DOCUMENT: past-excuses` header.
+  - `test_context_no_history_says_none`: output has `(none)` under past-excuses.
+  - `test_context_missing_calendar_does_not_raise`: nonexistent path gives `(calendar unavailable)`; a file containing `not json` gives the same.
+  - `test_context_rejects_blank_and_bad_level`: parametrised over `("", "boss", 2)`, `("  ", "boss", 2)`, `("x", "", 2)`, `("x", "boss", 0)`, `("x", "boss", 5)`, each raises `ValueError`.
+  - `test_levels_has_keys_1_to_4`.
+- [ ] **Step 8: Run `pytest tests/test_context.py -v`.** Expected: FAIL, `ModuleNotFoundError: No module named 'context'`.
+- [ ] **Step 9: Implement `context.py`.** `LEVELS` text (exact): 1 "Vague and low-risk. Something like 'something came up'. No details that could be checked."; 2 "Tied to one real fact from the calendar or weather. Short and believable."; 3 "A short saga with two or three supporting details that are internally consistent. Still plausible."; 4 "Pre-emptive. Look at the next seven days of calendar, pick the meetings the user will most want to skip, and propose one excuse per meeting." `build_context` returns documents joined by blank lines, each introduced by `=====  DOCUMENT: <name>  =====` (the kit's format): `request.md` (Today, Escape, Recipient, Level plus its description, City), `calendar.md` (one line per event `date time title (attendees)`, window today through today+6), `past-excuses.md` (one bullet per excuse, or `(none)`). Normalise the recipient with `memory.normalize` for lookup but print the original spelling in `request.md`. Catch `OSError` and `ValueError` (includes JSON errors) around calendar loading.
+- [ ] **Step 10: Run `pytest -v`.** Expected: 17 passed (memory 6, context 11; the parametrised blank/level test counts as 5).
+- [ ] **Step 11: Commit** `feat: memory, context builder, project scaffold`.
+
+- [ ] **Open a PR to `main`.** `git push -u origin dev-a` and `gh pr create`. Do not edit files owned by anyone else.
 
 ---
 
-# Task B: Skeptic and prompts
+# Task B: Specialists and skills
 
-Branch `dev-b`. **Depends on nobody** (`skeptic.py` imports your own `prompts.py`; the Anthropic client is faked in tests).
+Branch `dev-b`. **Depends on nobody.** The Managed Agents calls in `create_specialists.py` and `upload_skills.py` are copied from the starter kit's files of the same names.
 
-## B1. Prompts
+**Files:** Create `specialists.py`, `create_specialists.py`, `upload_skills.py`, `skills/fact-grounding/SKILL.md`, `skills/recipient-personas/SKILL.md`, `skills/excuse-playbook/SKILL.md`, `skills/believability-rubric/SKILL.md`. Test: `tests/test_specialists.py`.
 
-- [ ] **Step 3: Write `prompts.py`**
+**Interfaces:** Produces `SPECIALISTS`, `SKILL_TO_SPECIALIST`, `build_agent_params` (Frozen interfaces). Consumes nothing from other tasks. Writes `.specialist_ids.json` (`{"fact_scout": id, "historian": id, "profiler": id, "storyteller": id, "critic": id}`) and `.skill_ids.json` when run for real.
 
-`LEVELS` copy, exact:
+Model constants in `specialists.py`: `MODEL_FAST = "claude-haiku-5-5"`, `MODEL_SPECIALIST = "claude-sonnet-5-5"`.
 
-```python
-LEVELS = {
-    1: "Vague and low-risk. Something like 'something came up'. No details that could be checked.",
-    2: "Tied to one real fact from the calendar or weather. Short and believable.",
-    3: "A short saga with two or three supporting details that are internally consistent. Still plausible.",
-    4: "Pre-emptive. Look at the next seven days of calendar, pick the meetings the user will most want to skip, and propose one excuse per meeting.",
-}
-```
+- [ ] **Step 1: Write `tests/test_specialists.py`.**
+  - `test_five_specialists_with_expected_keys`: keys in order `fact_scout, historian, profiler, storyteller, critic`; each has non-empty `name`, `model`, `system`.
+  - `test_models`: `fact_scout` and `historian` use `claude-haiku-5-5`; the other three `claude-sonnet-5-5`.
+  - `test_critic_reply_format_is_documented`: critic system contains `VERDICT: ACCEPT`, `VERDICT: REVISE`, `SCORE:`, `HOLES:` and `7`.
+  - `test_fact_scout_handles_weather_outage_and_uses_open_meteo`: system contains `Open-Meteo` and `weather unavailable`.
+  - `test_historian_bans_reuse`: system contains `never` (case-insensitive) and `past-excuses`.
+  - `test_storyteller_mentions_all_four_levels`: system contains `Level 1` through `Level 4`.
+  - `test_skill_mapping`: `SKILL_TO_SPECIALIST == {"fact-grounding":"fact_scout","recipient-personas":"profiler","excuse-playbook":"storyteller","believability-rubric":"critic"}`.
+  - `test_every_skill_dir_has_valid_skill_md`: for each skill name, `skills/<name>/SKILL.md` exists, starts with `---`, frontmatter has `name: <dir name>` and a non-empty `description:` line, body is longer than 200 characters.
+  - `test_build_agent_params`: returns dict with `name`, `model`, `system`, `tools == [{"type": "agent_toolset_20260401"}]`, and `metadata["role"] == spec["key"]`.
+- [ ] **Step 2: Run `pytest tests/test_specialists.py -v`.** Expected: FAIL, `ModuleNotFoundError: No module named 'specialists'`.
+- [ ] **Step 3: Write the four `SKILL.md` files.** Each starts with YAML frontmatter (`name`, `description`: when to trigger) and a body of at least 200 characters of real guidance:
+  - `fact-grounding`: how to turn calendar lines and weather into usable facts, which facts are checkable by a recipient, how to cite `calendar.md` lines, Open-Meteo URL pattern `https://api.open-meteo.com/v1/forecast?latitude=<lat>&longitude=<lon>&current_weather=true` with lat/lon for london, new york, san francisco, bangalore, dubai.
+  - `recipient-personas`: personas (strict manager, chill friend, suspicious partner, distant relative) with what each believes, tone and red flags.
+  - `excuse-playbook`: the four levels with do/don't examples, first-person voice, no preamble, level 4 one-line-per-meeting format.
+  - `believability-rubric`: score anchors 1 to 10, the checkable-detail test, too-convenient and rehearsed tells, accept at 7 or more.
+- [ ] **Step 4: Implement `specialists.py`.** `SPECIALISTS` entries follow the kit's `create_specialists.py` shape. System prompts, one decision each:
+  - Fact Scout: reads `calendar.md` and the `City` line, fetches current weather from Open-Meteo with web fetch, replies with at most 8 bullet facts; if weather cannot be fetched says `weather unavailable` and continues; never invents calendar events.
+  - Historian: reads `past-excuses.md`, replies with the list to avoid and the themes already used (for example dentist, car); never suggests an excuse itself.
+  - Profiler: reads `request.md`, replies with recipient type, tone, what they would believe, red flags, in at most 6 lines.
+  - Storyteller: given facts, history, profile, level and optional critic holes, writes only the excuse in first person; follows the playbook skill; never reuses a banned excuse; level 4 returns one line per meeting prefixed with the meeting title and a colon.
+  - Critic: plays the mildly suspicious recipient; replies only in the frozen format (first line `VERDICT: ACCEPT` or `VERDICT: REVISE`, `SCORE: n`, `HOLES:` bullets); accept at 7 or more.
+  `build_agent_params(spec)` returns `name`, `model`, `system`, `tools=[{"type": "agent_toolset_20260401"}]`, `metadata={"project": "excuse-swarm", "role": spec["key"]}`.
+- [ ] **Step 5: Run `pytest tests/test_specialists.py -v`.** Expected: 9 passed.
+- [ ] **Step 6: Write `create_specialists.py` and `upload_skills.py`** adapted from the kit's files of the same names: iterate `SPECIALISTS`, call `client.beta.agents.create(**build_agent_params(spec))`, save `.specialist_ids.json`; `upload_skills.py` reuses existing skills by `display_title`, uploads with `files_from_dir`, attaches to the mapped specialist skipping duplicates, writes `.skill_ids.json`. Both read `ANTHROPIC_API_KEY`, exit with a clear message when missing, and put any real call under `main()` so importing is safe. Verify: `python -c "import create_specialists, upload_skills; print('ok')"` prints `ok` with no key set.
+- [ ] **Step 7: Manual (needs a key and Managed Agents access):** run both scripts. Expected: five "Created ..." lines, then skills attached. Fix prompt wording only if the Critic's reply format is not followed (check in the console session view).
+- [ ] **Step 8: Commit** `feat: specialist agents and skills`.
 
-`AGENT_SYSTEM` must contain, in this order: a one-line role ("You write believable excuses on behalf of the user."), the rule "Always call recall_excuses first and never reuse any excuse it returns.", the rule "At levels 1 and 2, prefer real facts from get_calendar and get_weather over invented details.", the full `LEVELS` dict rendered as four lines, and the output rule "Reply with the excuse text only, written in first person as the user would send it. No preamble, no explanation, no options." For level 4, the output rule becomes one excuse per line prefixed with the meeting title and a colon. Build the string with an f-string so `LEVELS` is the single source of truth.
-
-`SKEPTIC_SYSTEM`, exact:
-
-```
-You are the person receiving this excuse. You are mildly suspicious but fair.
-Find concrete holes: contradictions, details that are easy to check and likely false, or anything that sounds rehearsed.
-Score believability from 1 (obviously fake) to 10 (you would accept it without a second thought).
-Return verdict "accept" if believability is 7 or higher, otherwise "revise".
-```
-
-- [ ] **Step 4: Verify prompts import**
-
-Run: `python -c "import prompts; assert set(prompts.LEVELS) == {1,2,3,4}; assert 'recall_excuses' in prompts.AGENT_SYSTEM; print('ok')"`
-Expected: `ok`
-
-## B2. Skeptic
-
-**Files:**
-- Create: `skeptic.py`
-- Test: `tests/test_skeptic.py`
-
-**Interfaces:**
-- Consumes: `prompts.SKEPTIC_SYSTEM`.
-- Produces:
-  - `class Verdict(pydantic.BaseModel)` with fields `believability: int`, `holes: list[str]`, `follow_up_question: str`, `verdict: Literal["accept", "revise"]`.
-  - `SKEPTIC_MODEL: str = "claude-haiku-5-5"`
-  - `critique(excuse: str, recipient: str, context: str, client=None) -> Verdict`. When `client` is `None`, uses a module-level `anthropic.Anthropic()` created lazily on first use (so importing the module does not need a key).
-
-- [ ] **Step 1: Write the failing tests**
-
-```python
-# tests/test_skeptic.py
-from skeptic import Verdict, critique, SKEPTIC_MODEL
-
-class FakeParsed:
-    def __init__(self, v): self.parsed_output = v
-
-class FakeMessages:
-    def __init__(self, verdict):
-        self.verdict = verdict
-        self.calls = []
-    def parse(self, **kwargs):
-        self.calls.append(kwargs)
-        return FakeParsed(self.verdict)
-
-class FakeClient:
-    def __init__(self, verdict): self.messages = FakeMessages(verdict)
-
-def test_critique_returns_verdict_from_client():
-    v = Verdict(believability=3, holes=["no dentist opens at 11pm"],
-                follow_up_question="Which dentist?", verdict="revise")
-    client = FakeClient(v)
-    out = critique("dentist at 11pm", "my manager", "Friday review", client=client)
-    assert out is v
-
-def test_critique_sends_expected_request():
-    v = Verdict(believability=8, holes=[], follow_up_question="", verdict="accept")
-    client = FakeClient(v)
-    critique("car broke down", "raj", "dinner", client=client)
-    call = client.messages.calls[0]
-    assert call["model"] == SKEPTIC_MODEL == "claude-haiku-5-5"
-    assert call["output_format"] is Verdict
-    assert "raj" in call["messages"][0]["content"]
-    assert "car broke down" in call["messages"][0]["content"]
-    assert "dinner" in call["messages"][0]["content"]
-    assert "thinking" not in call
-    assert "temperature" not in call
-
-def test_verdict_rejects_bad_verdict_value():
-    import pytest
-    with pytest.raises(Exception):
-        Verdict(believability=5, holes=[], follow_up_question="", verdict="maybe")
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `pytest tests/test_skeptic.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'skeptic'`
-
-- [ ] **Step 3: Implement `skeptic.py`**
-
-`critique` builds the user content as `f"Recipient: {recipient}\nContext: {context}\nExcuse: {excuse}"` and calls `client.messages.parse(model=SKEPTIC_MODEL, max_tokens=2000, system=SKEPTIC_SYSTEM, messages=[{"role": "user", "content": content}], output_format=Verdict)`. Return `response.parsed_output`. No other parameters.
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `pytest tests/test_skeptic.py -v`
-Expected: 3 passed
-
-
-## B3. Tune with a real key (manual, a few cents)
-
-Run `critique` on a hand-written bad excuse (for example `"I was abducted by aliens at 2pm, also my dentist called"`) and a good one (`"My dentist moved my appointment to 3pm and I cannot reschedule."`) with recipient `"my manager"`. The bad one must score low (about 4 or less) and the good one high (7 or more). If not, adjust the wording of `SKEPTIC_SYSTEM` only; keep the accept threshold at 7.
-
-### B "Done when"
-
-- `pytest tests/test_skeptic.py -v` shows 3 passed.
-- `python -c "import prompts; assert set(prompts.LEVELS)=={1,2,3,4}; assert 'recall_excuses' in prompts.AGENT_SYSTEM; print('ok')"` prints `ok`.
-- B3 bad/good check behaves.
-
-- [ ] **Commit and open a PR to `main`**
-
-```bash
-git checkout -b dev-b
-git add prompts.py skeptic.py tests/__init__.py tests/test_skeptic.py
-git commit -m "feat: prompts and skeptic subagent with structured verdict"
-git push -u origin dev-b
-```
-
-Then open a PR. Do not edit files owned by anyone else.
+- [ ] **Open a PR to `main`.** `git push -u origin dev-b` and `gh pr create`. Do not edit files owned by anyone else.
 
 ---
 
-# Task C: Agent loop
+# Task C: Result schema, coordinator, and swarm client
 
-Branch `dev-c`. Imports `tools.ALL_TOOLS`, `prompts.AGENT_SYSTEM`, `prompts.LEVELS`, `skeptic.critique`, `skeptic.Verdict`, none of which you build. **Use the stubs** `tools.py`, `prompts.py`, `skeptic.py` from the Stubs section in `/tmp/stubs/`, and run tests with `PYTHONPATH=/tmp/stubs:. pytest tests/test_agent.py -v`.
+Branch `dev-c`. Imports `context.build_context` (Task A). **Use the `context.py` stub** from Stubs. Provisioning scripts are adapted from the kit's `create_coordinator.py` and `setup_environment.py`.
 
-Skip plan Step 7 (real API check). It is in Task E.
+**Files:** Create `schema.py`, `coordinator.py`, `swarm_client.py`, `create_coordinator.py`, `setup_environment.py`. Test: `tests/test_schema.py`, `tests/test_coordinator.py`, `tests/test_swarm_client.py`.
 
-- [ ] **Step 1: Write the failing tests**
+**Interfaces:** Produces `schema.*`, `coordinator.*`, `swarm_client.run_swarm` (Frozen interfaces). Consumes `context.build_context` (Task 1; use a stub in isolation) and, at run time, `.coordinator_id` and `.environment_id` in `ids_dir`. `COORDINATOR_MODEL = "claude-opus-5-5"`.
 
-```python
-# tests/test_agent.py
-import pytest
-from skeptic import Verdict
-from agent import generate_excuse, draft, DECLINED, AGENT_MODEL
+- [ ] **Step 1: Write `tests/test_schema.py`.**
+  - `test_parse_bare_json`: two-round JSON parses; `final_excuse` is the last round's excuse.
+  - `test_parse_fenced_json`: the same JSON wrapped in a fenced `json` block.
+  - `test_parse_json_with_prose_around_it`: text before and after the object still parses (first `{` to last `}`).
+  - `test_prose_falls_back_to_single_round`: `"Sorry, my dentist moved my appointment."` gives one round with `believability == 0`, `holes == ["unparsed output"]`, `verdict == "revise"`, same excuse text.
+  - `test_empty_raises`: `""` and `"   "` raise `ValueError`.
+  - `test_bad_verdict_value_falls_back`: JSON with `"verdict": "maybe"` falls back to a single prose round.
+  - `test_empty_rounds_falls_back`: `{"rounds": []}` falls back to a single prose round.
+- [ ] **Step 2: Run `pytest tests/test_schema.py -v`.** Expected: FAIL, `ModuleNotFoundError: No module named 'schema'`.
+- [ ] **Step 3: Implement `schema.py`.** `Round`, `SwarmResult` (property `final_excuse`), and `parse_result` using `json.loads` on the first `{` to last `}` slice and `SwarmResult.model_validate`; on any parse or validation failure or zero rounds return the prose fallback. Strip before checking emptiness.
+- [ ] **Step 4: Run `pytest tests/test_schema.py -v`.** Expected: 7 passed.
+- [ ] **Step 5: Write `tests/test_coordinator.py`.**
+  - `test_params_roster_has_all_five_in_order`: with ids for the five keys, `params["multiagent"] == {"type":"coordinator","agents":[{"type":"agent","id":...}, ...]}` in key order `fact_scout, historian, profiler, storyteller, critic`.
+  - `test_params_model_name_tools`: `model == "claude-opus-5-5"`, `name == "Excuse Director"`, `tools == [{"type":"agent_toolset_20260401"}]`.
+  - `test_missing_specialist_raises`: dropping `critic` raises `KeyError`.
+  - `test_system_orders_parallel_delegation`: system contains `SINGLE message`, `Fact Scout`, `Historian`, `Recipient Profiler`, `Storyteller`, `Critic`.
+  - `test_system_caps_revisions_and_pins_result_format`: system contains `at most 2`, `"rounds"`, `"believability"`, `"holes"`, `"verdict"`, and `only the JSON`.
+- [ ] **Step 6: Run `pytest tests/test_coordinator.py -v`.** Expected: FAIL, `ModuleNotFoundError: No module named 'coordinator'`.
+- [ ] **Step 7: Implement `coordinator.py`.** `COORDINATOR_SYSTEM` follows the kit's coordinator prompt: roster, then the run order (1 read the request; 2 delegate to Fact Scout, Historian and Recipient Profiler in a SINGLE message; 3 give the Storyteller their outputs, the level and any banned excuses; 4 send the draft with the recipient to the Critic; 5 if REVISE send the holes back to the Storyteller and re-submit to the Critic, at most 2 revisions; 6 stop on ACCEPT or after the cap, always returning the last draft), then the output rule: reply with only the JSON object from the result contract, nothing else. `build_coordinator_params(ids)` indexes `ids` by the five keys (raises `KeyError`) and builds the dict as the kit does. `create_coordinator.py` and `setup_environment.py` are adapted from the kit (same file names; coordinator script reads `.specialist_ids.json`, writes `.coordinator_id`; environment script writes `.environment_id`, reusing it if present). Both are safe to import with no key.
+- [ ] **Step 8: Run `pytest tests/test_coordinator.py -v`.** Expected: 5 passed.
+- [ ] **Step 9: Write `tests/test_swarm_client.py`** with fakes: `FakeStream` (context manager, iterates scripted event objects built with `types.SimpleNamespace`), `FakeEvents` (`stream(session_id)` returns the stream, `send(session_id, events=...)` records the call), `FakeClient` exposing `beta.sessions.create(...)` (returns object with `id="sess_1"`) and `beta.sessions.events`. A fixture writes `.coordinator_id` and `.environment_id` into `tmp_path` and passes `ids_dir=str(tmp_path)`; calendar and memory paths do not matter because tests pass `context_fn` indirectly: monkeypatch `swarm_client.build_context` to return `"CTX"`. Tests:
+  - `test_returns_parsed_result_and_sends_one_user_message`: events thread_created (agent_name `Fact Scout`), agent.message with JSON text, status_idle; result has the rounds; `events.send` called once with `type == "user.message"` and text containing `CTX`.
+  - `test_session_created_with_ids`: `sessions.create` called with `agent` and `environment_id` equal to the file contents.
+  - `test_on_event_receives_kinds_in_order`: scripted events thread_created, thread_status_running, thread_message_sent, thread_message_received, tool_use, agent.message, idle map to kinds `thread_created, thread_running, delegate, reply, tool, message`; each event dict has keys `kind`, `agent`, `text`.
+  - `test_stream_end_without_idle_uses_collected_text`.
+  - `test_no_output_raises_runtime_error`: idle with no agent.message raises `RuntimeError`.
+  - `test_prose_output_falls_back`: agent.message with plain prose gives a one-round result.
+  - `test_timeout_raises`: injected `clock` returning 0 then 1000 with `max_seconds=10` raises `TimeoutError`.
+  - `test_blank_input_raises_before_any_client_call` (parametrised like Task 1; assert `sessions.create` never called).
+  - `test_missing_id_files_raises_filenotfound_with_hint`: message mentions `create_coordinator.py`.
+- [ ] **Step 10: Run `pytest tests/test_swarm_client.py -v`.** Expected: FAIL, `ModuleNotFoundError: No module named 'swarm_client'`.
+- [ ] **Step 11: Implement `swarm_client.py`.** Validate input first (`ValueError`); read the two ID files from `ids_dir`; lazily build the client with the beta header; `sessions.create(agent=..., environment_id=..., title="Excuse request")`; open `events.stream(session.id)`, send the user message (task instructions: run the Excuse Desk process for the level, return only the result JSON, followed by `build_context(...)`), iterate events as in the kit's `run_deal_desk.py`, translate to `on_event` dicts, collect `agent.message` text blocks, break on `session.status_idle`, check the deadline before handling each event. Return `parse_result("".join(collected))`; raise `RuntimeError("swarm produced no output")` when nothing was collected. Import as `from context import build_context` so tests can monkeypatch it.
+- [ ] **Step 12: Run `pytest tests/test_schema.py tests/test_coordinator.py tests/test_swarm_client.py -v`.** Expected: 7 + 5 + 13 = 25 passed (the parametrised blank-input test counts as 5).
+- [ ] **Step 13: Manual (needs key and access):** `python setup_environment.py`, then after Task 2's scripts have run `python create_coordinator.py`. Expected: `Coordinator created: ...` and the roster of five keys.
+- [ ] **Step 14: Commit** `feat: swarm client, coordinator and result schema`.
 
-def accept(): return Verdict(believability=8, holes=[], follow_up_question="", verdict="accept")
-def revise(): return Verdict(believability=3, holes=["too vague"], follow_up_question="?", verdict="revise")
-
-def test_stops_on_first_accept():
-    drafts = iter(["excuse A"])
-    hist = generate_excuse("standup", "manager", 1,
-                           draft_fn=lambda *a, **k: next(drafts),
-                           critique_fn=lambda *a, **k: accept())
-    assert [t for t, _ in hist] == ["excuse A"]
-
-def test_revises_then_accepts_and_passes_feedback():
-    seen = []
-    def fake_draft(request, recipient, level, feedback=None, client=None):
-        seen.append(feedback); return f"draft{len(seen)}"
-    verdicts = iter([revise(), accept()])
-    hist = generate_excuse("standup", "manager", 2,
-                           draft_fn=fake_draft, critique_fn=lambda *a, **k: next(verdicts))
-    assert len(hist) == 2
-    assert seen == [None, "too vague"]
-
-def test_caps_at_max_rounds_when_never_accepted():
-    n = {"i": 0}
-    def fake_draft(*a, **k): n["i"] += 1; return f"d{n['i']}"
-    hist = generate_excuse("standup", "manager", 3, max_rounds=2,
-                           draft_fn=fake_draft, critique_fn=lambda *a, **k: revise())
-    assert len(hist) == 3
-    assert hist[-1][1].verdict == "revise"
-
-@pytest.mark.parametrize("request_,recipient,level", [
-    ("", "manager", 1), ("   ", "manager", 1), ("standup", "", 1),
-    ("standup", "manager", 0), ("standup", "manager", 5),
-])
-def test_rejects_bad_input(request_, recipient, level):
-    with pytest.raises(ValueError):
-        generate_excuse(request_, recipient, level,
-                        draft_fn=lambda *a, **k: "x", critique_fn=lambda *a, **k: accept())
-
-class Block:
-    def __init__(self, type_, text=None): self.type = type_; self.text = text
-
-class FakeFinal:
-    def __init__(self, blocks, stop_reason="end_turn"):
-        self.content = blocks; self.stop_reason = stop_reason
-
-class FakeRunner:
-    def __init__(self, final): self._final = final
-    def until_done(self): return self._final
-
-class FakeBetaMessages:
-    def __init__(self, final): self.final = final; self.calls = []
-    def tool_runner(self, **kwargs): self.calls.append(kwargs); return FakeRunner(self.final)
-
-class FakeClient:
-    def __init__(self, final):
-        self.beta = type("B", (), {})(); self.beta.messages = FakeBetaMessages(final)
-
-def test_draft_returns_text_block():
-    client = FakeClient(FakeFinal([Block("text", "I have a dentist appointment.")]))
-    assert draft("review", "manager", 2, client=client) == "I have a dentist appointment."
-
-def test_draft_sends_expected_request():
-    client = FakeClient(FakeFinal([Block("text", "x")]))
-    draft("review", "manager", 2, feedback="too vague", client=client)
-    call = client.beta.messages.calls[0]
-    assert call["model"] == AGENT_MODEL == "claude-opus-5-5"
-    assert len(call["tools"]) == 3
-    content = call["messages"][0]["content"]
-    assert "review" in content and "manager" in content and "Level: 2" in content
-    assert "too vague" in content
-    assert "Today:" in content
-    assert "thinking" not in call and "tool_choice" not in call
-
-def test_draft_without_feedback_omits_feedback_line():
-    client = FakeClient(FakeFinal([Block("text", "x")]))
-    draft("review", "manager", 2, client=client)
-    assert "skeptic rejected" not in client.beta.messages.calls[0]["messages"][0]["content"]
-
-def test_draft_with_no_text_block_returns_declined():
-    client = FakeClient(FakeFinal([Block("thinking")], stop_reason="refusal"))
-    assert draft("review", "manager", 4, client=client) == DECLINED
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `pytest tests/test_agent.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'agent'`
-
-- [ ] **Step 3: Implement `draft` in `agent.py`**
-
-Build the user message as:
-
-```
-Today: {date.today().isoformat()}
-Escape: {request}
-Recipient: {recipient}
-Level: {level}
-```
-
-and, only when `feedback` is truthy, append `\nThe skeptic rejected the last draft. Fix these holes: {feedback}`.
-
-Call `client.beta.messages.tool_runner(model=AGENT_MODEL, max_tokens=16000, system=AGENT_SYSTEM, tools=ALL_TOOLS, messages=[{"role": "user", "content": user}])`, then `final = runner.until_done()`. Return the `.text` of the first block with `.type == "text"`, or `DECLINED` if there is none. Use `next(..., None)` so a missing block never raises.
-
-`client=None` means use a lazily created module-level `anthropic.Anthropic()`, same pattern as `skeptic.py`.
-
-- [ ] **Step 4: Implement `generate_excuse` in `agent.py`**
-
-Validate first: `request.strip()` and `recipient.strip()` non-empty, `level in LEVELS`. Then loop `for _ in range(max_rounds + 1)`: call `draft_fn(request, recipient, level, feedback)`, then `critique_fn(text, recipient, request)`, append the pair, break on `verdict == "accept"`, else set `feedback = "; ".join(verdict.holes)`.
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `pytest tests/test_agent.py -v`
-Expected: 12 passed (the parametrized test counts as 5)
-
-
-### C "Done when"
-
-- `PYTHONPATH=/tmp/stubs:. pytest tests/test_agent.py -v` shows 12 passed (the parametrized test counts as 5).
-- `grep -nE "thinking|temperature|tool_choice|budget_tokens" agent.py` prints nothing.
-- Importing `agent` needs no API key.
-
-- [ ] **Commit and open a PR to `main`**
-
-```bash
-git checkout -b dev-c
-git add agent.py tests/__init__.py tests/test_agent.py
-git commit -m "feat: excuse agent with skeptic revision loop"
-git push -u origin dev-c
-```
-
-Then open a PR. Do not edit files owned by anyone else.
+- [ ] **Open a PR to `main`.** `git push -u origin dev-c` and `gh pr create`. Do not edit files owned by anyone else.
 
 ---
 
 # Task D: Streamlit UI
 
-Branch `dev-d`. Imports `agent.generate_excuse`, `memory.save_excuse`, `prompts.LEVELS`, none of which you build. **Use the stubs** `agent.py`, `skeptic.py`, `memory.py`, `prompts.py` from the Stubs section in `/tmp/stubs/` and run with `PYTHONPATH=/tmp/stubs:. streamlit run app.py --server.headless true`.
+Branch `dev-d`. Imports `swarm_client.run_swarm`, `schema`, `memory.save_excuse`, `context.LEVELS`, none of which you build. **Use the stubs** `swarm_client.py`, `schema.py`, `memory.py`, `context.py` from Stubs. Run tests with `PYTHONPATH=/tmp/stubs:. pytest tests/test_app.py -v`.
 
-Single page. Required elements and behavior:
+**Files:** Create `app.py`. Test: `tests/test_app.py` (uses `streamlit.testing.v1.AppTest`).
 
-- `st.title("Excuse Generator")`.
-- `request = st.text_input("What do you need to get out of?")`.
-- `recipient = st.text_input("Who are you telling?")`.
-- `level = st.slider("Escalation level", 1, 4, 2)` followed by `st.caption(LEVELS[level])`.
-- A "Generate" button. When clicked and both inputs are non-blank, call `generate_excuse` inside `st.spinner("Consulting the calendar, the weather, and your conscience...")` and store the result in `st.session_state["history"]`. Store the `recipient` and `level` used in `st.session_state` too. If either input is blank, `st.warning("Fill in both fields.")` and do not call the agent. Wrap the call in `try/except Exception as e` and show `st.error(str(e))`.
-- Rendering reads from `st.session_state.get("history")`, not from the button's return value, so the page survives the re-run that any later button click triggers.
-- For each round `i` (1-based), an `st.expander(f"Round {i}: believability {verdict.believability}/10", expanded=(i == last))` containing `st.write(text)` and, if `verdict.holes`, `st.caption("Skeptic found: " + "; ".join(verdict.holes))`.
-- After the expanders, `st.code(final_text, language=None)` so the built-in copy button appears.
-- A "Mark as used" button. On click, `save_excuse(recipient, final_text, level)` using the values stored in session state, then `st.success("Saved. This one will never be used on them again.")`.
+**Interfaces:** Consumes `swarm_client.run_swarm`, `schema.SwarmResult`/`Round`, `memory.save_excuse`, `context.LEVELS`. Produces nothing. No Anthropic SDK import in `app.py`.
 
-Nothing in this file calls the Anthropic SDK directly.
+- [ ] **Step 1: Write `tests/test_app.py`.** Each test uses `monkeypatch` to replace `swarm_client.run_swarm` with a fake that records its calls in a list, calls `on_event` twice, and returns a two-round `SwarmResult` (round 1: believability 3, one hole, `revise`; round 2: believability 8, no holes, `accept`), and to replace `memory.save_excuse` with a fake that appends its arguments to a list. Patching happens before `AppTest.from_file("app.py").run()`, and `app.py` imports with `from swarm_client import run_swarm` and `from memory import save_excuse` at script run time, so the patched names are picked up. The same tests pass against stub modules or the real ones. Tests:
+  - `test_blank_inputs_warn_and_do_not_call_swarm`: click Generate with empty fields; a warning containing `Fill in both fields.` exists and the fake's call list is empty.
+  - `test_generate_shows_two_rounds_and_final_code`: fill request and recipient, click Generate; two expanders whose labels contain `Round 1: believability 3/10` and `Round 2: believability 8/10`; one code block whose value equals round 2's excuse.
+  - `test_mark_as_used_saves_and_keeps_rounds`: after Generate, click "Mark as used"; the save fake received `("my manager", final_text, 2)`, a success message contains `Saved.`, and both expanders are still present.
+  - `test_swarm_error_is_shown`: the fake raises `RuntimeError("boom")`; an error element contains `boom`.
+  - `test_level_caption_follows_default_slider`: with no interaction the caption equals `LEVELS[2]`.
+- [ ] **Step 2: Run `PYTHONPATH=/tmp/stubs:. pytest tests/test_app.py -v`.** Expected: FAIL, `app.py` not found.
+- [ ] **Step 3: Implement `app.py`.** `st.title("Excuse Swarm")`; `st.text_input` for "What do you need to get out of?", "Who are you telling?", "City (for weather)" default "London"; `st.slider("Escalation level", 1, 4, 2)` then `st.caption(LEVELS[level])`; Generate button. Blank request or recipient: `st.warning("Fill in both fields.")`, no call. Otherwise inside `st.status("Briefing the swarm...", expanded=True)` call `run_swarm(..., on_event=cb)` where `cb` writes one line per event into the status container (for example `Fact Scout joined`, `Director → Critic`, `Critic replied`); wrap in `try/except Exception as e` showing `st.error(str(e))`. Store result, recipient and level in `st.session_state`; render from session state. One `st.expander(f"Round {i}: believability {r.believability}/10", expanded=(i == last))` per round with `st.write(excuse)` and, when holes exist, `st.caption("Critic found: " + "; ".join(holes))`. Then `st.code(final_excuse, language=None)` and a "Mark as used" button that calls `save_excuse(recipient, final_excuse, level)` using the stored values and shows `st.success("Saved. This one will never be used on them again.")`.
+- [ ] **Step 4: Run `PYTHONPATH=/tmp/stubs:. pytest tests/test_app.py -v`.** Expected: 5 passed.
+- [ ] **Step 5: Manual:** `PYTHONPATH=/tmp/stubs:. streamlit run app.py --server.headless true`; confirm the live status lines, copy icon on the code block, and rounds staying after "Mark as used".
+- [ ] **Step 6: Commit** `feat: streamlit ui with live swarm feed`.
 
-- [ ] **Step 2: Verify it compiles without a key**
-
-Run: `python -c "import ast; ast.parse(open('app.py').read()); print('ok')"`
-Expected: `ok`
-
-- [ ] **Step 3: Run the app against the stubs (no API key needed)**
-
-Run: `PYTHONPATH=/tmp/stubs:. streamlit run app.py --server.headless true`
-Expected: prints a `Local URL: http://localhost:8501`. Open it. Generate a level 2 excuse for "Friday 3pm review" to "my manager". Confirm: spinner shows, two expanders appear, the code block has a copy icon, "Mark as used" shows the success message, and clicking "Mark as used" does not wipe the expanders.
-
-Note: the stub `generate_excuse` returns two rounds, so you can check the expanders, the copy button, and that "Mark as used" does not wipe the rounds. The no-repeat check against the real memory and agent (plan Step 4) is in Task E.
-
-### D "Done when"
-
-- `python -c "import ast; ast.parse(open('app.py').read()); print('ok')"` prints `ok`.
-- Running against stubs: spinner shows, two expanders appear (last one open), code block has a copy icon, "Mark as used" shows the success message and the rounds stay on screen, blank inputs show the warning and do not call the agent.
-- `grep -n anthropic app.py` prints nothing.
-
-- [ ] **Commit and open a PR to `main`**
-
-```bash
-git checkout -b dev-d
-git add app.py
-git commit -m "feat: streamlit ui with approval step"
-git push -u origin dev-d
-```
-
-Then open a PR. Do not edit files owned by anyone else.
+- [ ] **Open a PR to `main`.** `git push -u origin dev-d` and `gh pr create`. Do not edit files owned by anyone else.
 
 ---
 
-# Task E: Integration and demo
+# Task E: Integration, demo, and real-API checks
 
-Branch `dev-e`. **Independent**: prepare everything now against the Contracts; nothing here needs A to D to exist when you write it. It goes green once A to D are on `main`. Until then you can write and syntax-check the files, and run pieces against the Stubs.
+Branch `dev-e`. **Independent**: write everything now against the Frozen interfaces; it goes green once A to D are on `main`. Until then you can write and syntax-check the files and run pieces against the Stubs.
 
-## E1. Smoke script (plan Task 1, smoke steps)
+**Files:** Create `tests/test_integration.py`, `scripts/seed_demo.py`, `scripts/smoke.py`, `docs/demo.md`.
 
-Write `scripts/smoke.py` and run it with your key to confirm the key works before anyone else needs it.
+**Interfaces:** Consumes everything from Tasks 1 to 4 on `main`. Everything in this task can be written beforehand against the Frozen interfaces; it runs green after Tasks 1 to 4 merge.
 
-- [ ] **Step 6: Write `scripts/smoke.py`**
+- [ ] **Step 1: Write `scripts/smoke.py`:** build `anthropic.Anthropic()` with the Managed Agents beta header, call `client.messages.create(model="claude-haiku-5-5", max_tokens=256, messages=[{"role":"user","content":"Say hello in five words."}])` and print the first text block; then try `client.beta.environments.list()` inside `try/except Exception` and print `managed agents access: ok` or `managed agents access: NOT AVAILABLE (<error>)`. Expected output with a valid key and access: a greeting and `managed agents access: ok`.
+- [ ] **Step 2: Write `scripts/seed_demo.py`:** delete `data/excuses.db` if present, save two excuses for `"my manager"` ("My dentist moved my appointment to 3pm." and "Our building's fire alarm test overran.", both level 2), print `seeded`.
+- [ ] **Step 3: Write `docs/demo.md`:** the four demo steps from spec section 7, the provisioning order from spec section 5, and the fallbacks (weather outage: Fact Scout says unavailable and continues; model IDs rejected: swap the three constants).
+- [ ] **Step 4: Write `tests/test_integration.py`** using real `memory`, `context`, `schema`, `swarm_client` and a fake Managed Agents client (reuse the fake-stream pattern from Task 3's tests, copied here because test files are not shared). Fixture: `monkeypatch.chdir(tmp_path)` (so relative `data/excuses.db` lands in a temp dir), ID files written there, calendar path passed via the repo root `Path(__file__).resolve().parent.parent / "data" / "calendar.json"`. Tests:
+  - `test_session_message_contains_real_context`: after `save_excuse("  My Manager ", "dentist", 2)`, `run_swarm("Friday 3pm review", "my manager", 2, ...)` sends a user message containing `dentist`, `Friday 3pm review` and a calendar line from the seed file.
+  - `test_revise_then_accept_flow_reaches_ui_shape`: fake Director JSON with two rounds gives `final_excuse` equal to round 2's excuse and `rounds[0].verdict == "revise"`.
+  - `test_prose_director_output_still_returns_a_result`.
+  - `test_seed_calendar_is_valid`: at least 6 events with keys `date, time, title, attendees`.
+  - `test_seed_script_leaves_two_excuses`: run `scripts/seed_demo.py` via `subprocess` with `cwd=tmp_path` and `PYTHONPATH` set to the repo root; afterwards `past_excuses_for("my manager")` (cwd still `tmp_path`) has two entries.
+  - `test_blank_recipient_never_creates_session`.
+- [ ] **Step 5: Run `pytest -v` on `main` after Tasks 1 to 4 merge.** Expected: all green, 62 tests (memory 6, context 11, specialists 9, schema 7, coordinator 5, swarm client 13, app 5, integration 6).
+- [ ] **Step 6: Real checks (manual, needs key and Managed Agents access):** `python scripts/smoke.py`. Then provision in order `python setup_environment.py && python create_specialists.py && python upload_skills.py && python create_coordinator.py`. If agent creation rejects a model ID, apply the model-ID fallback from spec section 8 in `specialists.py` and `coordinator.py` (the owners of those constants) and re-run.
+- [ ] **Step 7: End-to-end:** `python scripts/seed_demo.py`, then `python -c "from swarm_client import run_swarm; r = run_swarm('Friday 3pm review','my manager',2, on_event=print); [print(x) for x in r.rounds]"`. Expected: thread events for the specialists, one to three rounds, and an excuse that differs from both seeded ones. Then `streamlit run app.py --server.headless true` and rehearse the four demo steps from `docs/demo.md`; each should finish in under 90 seconds. If slower, tell the Task 3 owner to lower the Director to a faster model or cap Critic rounds.
+- [ ] **Step 8: Commit** `test: integration tests, smoke and seed scripts, demo notes`.
 
-A script that builds `anthropic.Anthropic()`, calls `client.messages.create(model="claude-haiku-5-5", max_tokens=256, messages=[{"role": "user", "content": "Say hello in five words."}])`, and prints the text of the first block whose `.type == "text"`. Use Haiku here because it is the cheapest check that the key works.
-
-- [ ] **Step 7: Run the smoke test**
-
-Run: `export ANTHROPIC_API_KEY=... && python scripts/smoke.py`
-Expected: one short greeting line printed. If `AuthenticationError`, the key is wrong. Stop and fix before continuing.
-
-## E2. Seed script and demo notes (plan Task 8)
-
-- [ ] **Step 1: Write `scripts/seed_demo.py`**
-
-Deletes `data/excuses.db` if present, then saves two excuses for recipient `"my manager"`: `"My dentist moved my appointment to 3pm."` (level 2) and `"Our building's fire alarm test overran."` (level 2). Prints `seeded`.
-
-- [ ] **Step 2: Run it (only after A is merged; until then just syntax-check the file)**
-
-Run: `python scripts/seed_demo.py && python -c "from memory import past_excuses_for; print(len(past_excuses_for('my manager')))"`
-Expected: `seeded` then `2`
-
-Write `docs/demo.md` (instead of a README section, so Task A owns README alone):
-
-A demo script with these four steps, copied from the spec: level 1 for "team lunch"; level 3 for "Friday 3pm review with my manager" and open the expanders; "Mark as used" then regenerate to show no repeat; level 4 pre-emptive week plan. Note the fallback if wifi fails: weather returns "Weather unavailable" and the agent still works.
-
-## E3. Integration tests
-
-Create `tests/test_integration.py`. It uses the real `tools`, `memory`, `agent`, `skeptic`, `services` modules wired together and **fake critique/draft functions or a fake Anthropic client** (no real API). `memory.DB_PATH` is bound as a default argument at definition time, so monkeypatching it does nothing. Instead use `monkeypatch.chdir(tmp_path)` in a fixture: the relative `data/excuses.db` then lands in the temp dir and `init_db` creates `data/` itself. Compute the repo root with `Path(__file__).resolve().parent.parent` for anything that must read repo files (calendar, scripts). Required cases:
-
-1. **Revise then accept:** fake `draft_fn` and a fake skeptic client returning revise then accept. `generate_excuse` returns 2 rounds and round 2's feedback equals `"; ".join(holes)` of round 1.
-2. **Never accepts:** skeptic always revises. `generate_excuse(..., max_rounds=2)` returns exactly 3 rounds, no exception, last verdict is `revise`.
-3. **Memory reaches the agent:** after `memory.save_excuse("my manager", "dentist", 2)`, calling `json.loads(tools.recall_excuses("my manager"))` returns `["dentist"]`.
-4. **Recipient spelling:** save with `"  My Manager "`, recall with `"my manager"` returns the saved excuse.
-5. **Weather offline:** `services.weather_for("London", get=raising_fn)` returns `"Weather unavailable for London."`.
-6. **Seed calendar sanity:** the repo's `data/calendar.json` (read via the repo root path) has at least 6 events and every event has `date`, `time`, `title`, `attendees`.
-7. **Seed script:** run `scripts/seed_demo.py` as a subprocess with `cwd=tmp_path` and `PYTHONPATH=<repo root>`. Afterwards (still chdir'd to `tmp_path`) `past_excuses_for("my manager")` has exactly 2 entries.
-
-Expected after A to D are merged: `pytest -v` shows 27 plus your integration tests, all passed.
-
-## E4. Real-API and demo checks on `main` (manual)
-
-Run: `python -c "from agent import generate_excuse; h = generate_excuse('Friday 3pm review', 'my manager', 2); [print(i+1, v.believability, v.verdict, '\n', t, '\n') for i,(t,v) in enumerate(h)]"`
-Expected: one to three rounds printed, each with a score and a first-person excuse. If every round prints `DECLINED`, check `stop_reason` by printing `final.stop_reason` inside `draft` temporarily.
-
-Then:
-
-1. `python scripts/seed_demo.py && python -c "from memory import past_excuses_for; print(len(past_excuses_for('my manager')))"` prints `seeded` then `2`.
-2. Start `streamlit run app.py --server.headless true`, generate a level 2 excuse for "Friday 3pm review" to "my manager". Confirm the new excuse differs from the two seeded ones.
-3. Click "Mark as used", generate again for the same recipient, confirm the new excuse differs again, and `past_excuses_for("my manager")` now lists three.
-4. Rehearse the four demo steps in `docs/demo.md`. Each must finish in under 60 seconds.
-5. If level 3 or 4 is slower than 60 seconds, ask Task C owner to add `output_config={"effort": "low"}` to the `tool_runner` call and rerun `pytest -v`.
-
-### E "Done when"
-
-- `scripts/smoke.py` prints a greeting.
-- `pytest -v` on `main` is fully green, including `tests/test_integration.py`.
-- Steps E4.1 to E4.4 pass on `main`.
-
-- [ ] **Commit and open a PR to `main`**
-
-```bash
-git checkout -b dev-e
-git add tests/__init__.py tests/test_integration.py scripts docs/demo.md
-git commit -m "test: integration tests, smoke and seed scripts, demo notes"
-git push -u origin dev-e
-```
-
-Then open a PR. Do not edit files owned by anyone else.
+- [ ] **Open a PR to `main`.** `git push -u origin dev-e` and `gh pr create`. Do not edit files owned by anyone else.
 
 ---
 
@@ -742,47 +268,49 @@ Then open a PR. Do not edit files owned by anyone else.
 Create the files you need in `/tmp/stubs/`.
 
 ```python
-# /tmp/stubs/tools.py        (needed by C)
-ALL_TOOLS = [object(), object(), object()]
-```
-
-```python
-# /tmp/stubs/prompts.py      (needed by C, D)
+# /tmp/stubs/context.py       (needed by C and D)
+from datetime import date
 LEVELS = {1: "vague", 2: "one real fact", 3: "short saga", 4: "pre-emptive"}
-AGENT_SYSTEM = "stub system prompt mentioning recall_excuses"
-SKEPTIC_SYSTEM = "stub"
+def build_context(request, recipient, level, city="London", today=None, calendar_path="data/calendar.json", db_path="data/excuses.db"):
+    if not request.strip() or not recipient.strip() or level not in LEVELS:
+        raise ValueError("bad input")
+    return "CTX"
 ```
 
 ```python
-# /tmp/stubs/skeptic.py      (needed by C, D)
+# /tmp/stubs/schema.py        (needed by D)
 from typing import Literal
 from pydantic import BaseModel
 
-class Verdict(BaseModel):
+class Round(BaseModel):
+    excuse: str
     believability: int
     holes: list[str]
-    follow_up_question: str
     verdict: Literal["accept", "revise"]
 
-def critique(excuse, recipient, context, client=None):
-    return Verdict(believability=5, holes=["too vague"], follow_up_question="?", verdict="revise")
+class SwarmResult(BaseModel):
+    rounds: list[Round]
+    @property
+    def final_excuse(self) -> str:
+        return self.rounds[-1].excuse
 ```
 
 ```python
-# /tmp/stubs/agent.py        (needed by D)
-from skeptic import Verdict
+# /tmp/stubs/swarm_client.py  (needed by D)
+from schema import Round, SwarmResult
 
-def generate_excuse(request, recipient, level, max_rounds=2, draft_fn=None, critique_fn=None):
-    if not request.strip() or not recipient.strip() or level not in (1, 2, 3, 4):
-        raise ValueError("bad input")
-    return [
-        ("Something came up.", Verdict(believability=3, holes=["vague"], follow_up_question="?", verdict="revise")),
-        ("My dentist moved my appointment to 3pm.", Verdict(believability=8, holes=[], follow_up_question="", verdict="accept")),
-    ]
+def run_swarm(request, recipient, level, city="London", client=None, on_event=None, **kw):
+    if on_event:
+        on_event({"kind": "thread_created", "agent": "Fact Scout", "text": ""})
+        on_event({"kind": "reply", "agent": "Critic", "text": ""})
+    return SwarmResult(rounds=[
+        Round(excuse="Something came up.", believability=3, holes=["vague"], verdict="revise"),
+        Round(excuse="My dentist moved my appointment to 3pm.", believability=8, holes=[], verdict="accept"),
+    ])
 ```
 
 ```python
-# /tmp/stubs/memory.py       (needed by D)
+# /tmp/stubs/memory.py        (needed by D)
 _s = {}
 def save_excuse(recipient, text, level, db_path=None):
     _s.setdefault(recipient.strip().lower(), []).append(text)
