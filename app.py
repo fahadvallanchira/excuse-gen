@@ -1,5 +1,6 @@
 import streamlit as st
 
+from activity import AGENTS, ActivityTracker, parse_critic
 from context import LEVELS
 from memory import save_excuse
 from swarm_client import run_swarm
@@ -83,52 +84,114 @@ with st.container(border=True):
     generate = st.button("Generate", type="primary")
 
 
-def _describe(event: dict) -> str:
-    agent = event.get("agent", "")
-    kind = event.get("kind", "")
-    if kind == "thread_created":
-        return f"🟢 {agent} joined"
-    if kind == "thread_running":
-        return f"⚙️ {agent} is working"
-    if kind == "delegate":
-        return f"📨 Director → {agent}"
-    if kind == "reply":
-        return f"💬 {agent} replied"
-    if kind == "tool":
-        return f"🔧 {agent} used a tool"
-    return f"{agent}: message" if agent else "message"
+STATUS_COLOR = {"waiting": "gray", "working": "orange", "done": "green"}
 
 
+def _time_suffix(tracker: ActivityTracker, name: str) -> str:
+    secs = tracker.elapsed(name)
+    return f" · {secs}s" if secs is not None else ""
+
+
+def render_live(tracker: ActivityTracker, cards_box, log_box) -> None:
+    """Redraw the five agent cards and the latest timeline lines while the swarm runs."""
+    with cards_box.container():
+        for col, name in zip(st.columns(len(AGENTS)), AGENTS):
+            with col:
+                st.markdown(f"**{name}**")
+                status = tracker.agents[name].status
+                st.markdown(f":{STATUS_COLOR[status]}[{status}]{_time_suffix(tracker, name)}")
+    lines = [f"`{e['t']:>5.1f}s` {e['text']}" for e in tracker.timeline[-8:]]
+    log_box.markdown("\n\n".join(lines) if lines else "Waiting for the swarm...")
+
+
+def render_activity(tracker: ActivityTracker) -> None:
+    """After the run: what each agent was asked, which tools it used, and what it answered."""
+    st.subheader("What each agent did")
+    for name in AGENTS:
+        agent = tracker.agents[name]
+        with st.expander(f"{name} · {agent.status}{_time_suffix(tracker, name)}"):
+            if not agent.exchanges:
+                st.caption("Not called in this run.")
+            for n, ex in enumerate(agent.exchanges, start=1):
+                if len(agent.exchanges) > 1:
+                    st.markdown(f"**Round {n}**")
+                if ex.brief:
+                    st.markdown("**Brief from the Director**")
+                    st.text(ex.brief)
+                for tool in ex.tools:
+                    st.caption(f"Tool: {tool}")
+                if ex.reply:
+                    st.markdown("**Reply**")
+                    critic = parse_critic(ex.reply) if name == "Critic" else None
+                    if critic:
+                        score = f"{critic['score']}/10" if critic["score"] is not None else "no score"
+                        st.markdown(f"Verdict: {critic['verdict']} · Score {score}")
+                        for hole in critic["holes"]:
+                            st.markdown(f"- {hole}")
+                    else:
+                        st.text(ex.reply)
+    with st.expander("Full timeline"):
+        for e in tracker.timeline:
+            st.caption(f"{e['t']:.1f}s  {e['text']}")
+
+
+def _loader_html(msg: str) -> str:
+    return (
+        '<div class="loader"><div class="orbit"><span></span><span></span>'
+        f'<span></span><b>🐝</b></div><div class="msg">{msg}</div>'
+        '<div class="sub">Usually 30 to 90 seconds</div></div>'
+    )
+
+
+succeeded = False
 if generate:
     if not request.strip() or not recipient.strip():
         st.warning("Fill in both fields.")
     else:
+        tracker = ActivityTracker()
+        st.session_state.pop("activity", None)
         loader = st.empty()
-
-        def show_loader(msg: str) -> None:
-            loader.markdown(
-                '<div class="loader"><div class="orbit"><span></span><span></span>'
-                f'<span></span><b>🐝</b></div><div class="msg">{msg}</div>'
-                '<div class="sub">Usually 30 to 90 seconds</div></div>',
-                unsafe_allow_html=True,
-            )
-
+        cards_box = st.empty()
+        log_box = st.empty()
         try:
-            show_loader("Crafting your excuse…")
+            loader.markdown(_loader_html("Crafting your excuse…"), unsafe_allow_html=True)
+            render_live(tracker, cards_box, log_box)
 
             def cb(event: dict) -> None:
-                show_loader(_describe(event))
+                tracker.handle(event)
+                loader.markdown(_loader_html(event_msg(event)), unsafe_allow_html=True)
+                render_live(tracker, cards_box, log_box)
+
+            def event_msg(event: dict) -> str:
+                agent = event.get("agent", "")
+                kind = event.get("kind", "")
+                return {
+                    "thread_created": f"🟢 {agent} joined",
+                    "thread_running": f"⚙️ {agent} is working",
+                    "delegate": f"📨 Director → {agent}",
+                    "reply": f"💬 {agent} replied",
+                    "tool": f"🔧 {agent} used a tool",
+                }.get(kind, "Crafting your excuse…")
 
             result = run_swarm(request, recipient, level, city=city, on_event=cb)
-            loader.empty()
             st.session_state["result"] = result
             st.session_state["recipient"] = recipient
             st.session_state["level"] = level
             st.session_state.pop("saved", None)
+            succeeded = True
         except Exception as e:
-            loader.empty()
             st.session_state.pop("result", None)
             st.error(str(e))
+        finally:
+            st.session_state["activity"] = tracker
+            loader.empty()
+            cards_box.empty()
+            log_box.empty()
+
+# A clean rerun draws the results from saved state, so nothing depends on
+# placeholders that were cleared during the long-running swarm call.
+if succeeded:
+    st.rerun()
 
 result = st.session_state.get("result")
 if result is not None:
@@ -163,6 +226,10 @@ if result is not None:
 
     if st.session_state.get("saved"):
         st.success("Saved. This one will never be used on them again.")
+
+activity = st.session_state.get("activity")
+if activity is not None and activity.timeline:
+    render_activity(activity)
 
 st.divider()
 st.caption("Nothing is ever sent to anyone. Excuses are only saved locally when you mark them as used.")
