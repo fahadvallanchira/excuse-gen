@@ -1,4 +1,4 @@
-COORDINATOR_MODEL = "claude-opus-5-5"
+COORDINATOR_MODEL = "claude-sonnet-5-5"
 
 SPECIALIST_KEYS = ["fact_scout", "historian", "profiler", "storyteller", "critic"]
 
